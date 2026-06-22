@@ -2003,7 +2003,8 @@ async function ytFetch(path, params) {
     const [num, key] = pairs[i];
     const url = new URL(YT_BASE + path);
     Object.entries({ ...params, key }).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res  = await fetch(url.toString());
+    url.searchParams.set("_", Date.now());
+    const res  = await fetch(url.toString(), { cache: "no-store" });
     const data = await res.json();
 
     if (res.ok) {
