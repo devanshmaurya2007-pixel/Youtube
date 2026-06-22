@@ -1,1 +1,3537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>StudyTube</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!--
+    StudyTube v2 — Focused Learning
+    ─────────────────────────────────
+    1. Open via local server: python -m http.server 8080
+    2. Settings → add your YouTube Data API v3 key
+    3. Channels → add study channels to whitelist
+    4. Lock whitelist when done (1 edit after locking)
+    5. Break Mode → set daily limit and start a timed break session
+    6. Watch Later → bookmark videos to watch later
+    7. Watch from Link → paste any YouTube URL with whitelist/break enforcement
 
+    API Error 403 fix: Google Cloud Console → Credentials → your key
+    → Application restrictions → set to "None" for local file use
+  -->
+  <style>
+:root {
+  --bg:        #000000;
+  --bg2:       #070707;
+  --bg3:       #0d0d0d;
+  --surface:   #0a0a0a;
+  --surface2:  #111111;
+  --border:    #1a1a1a;
+  --border2:   #232323;
+
+  --text:      #f0f0f0;
+  --text2:     #5a5a5a;
+  --text3:     #303030;
+
+  --primary:   #b8a4ff;
+  --primary-d: #9d88f0;
+  --primary-l: #cfc0ff;
+
+  --accent:    #00d980;
+  --accent-d:  #00b86b;
+
+  --warn:      #f0a020;
+  --warn-d:    #cc8810;
+
+  --danger:    #ff4444;
+  --danger-d:  #dd2222;
+
+  --r:   5px;
+  --r2: 10px;
+  --r3: 16px;
+
+  --header-h: 50px;
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100dvh;
+}
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea { font-family: inherit; }
+img { display: block; }
+a { color: inherit; text-decoration: none; }
+
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.hidden { display: none !important; }
+
+/* ── HEADER ── */
+#header {
+  height: var(--header-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 200;
+}
+
+#menu-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--r);
+  background: transparent;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#menu-btn:hover { background: var(--surface2); border-color: var(--border2); }
+
+#menu-btn span {
+  display: block;
+  width: 13px;
+  height: 1px;
+  background: var(--text2);
+  border-radius: 1px;
+  transition: all 0.2s;
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--primary);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.logo-sub {
+  font-size: 8px;
+  color: var(--text3);
+  letter-spacing: 0.03em;
+}
+
+#header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#break-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.22);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warn);
+}
+
+#break-header-badge .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.2; }
+}
+
+/* ── DRAWER ── */
+#drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+}
+#drawer-overlay.open { opacity: 1; pointer-events: all; }
+
+#nav-drawer {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 256px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+  overflow: hidden;
+}
+#nav-drawer.open { transform: translateX(0); }
+
+.drawer-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-logo-icon {
+  width: 28px; height: 28px;
+  background: var(--primary);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.drawer-logo-text { font-weight: 700; font-size: 14px; flex: 1; letter-spacing: -0.2px; }
+
+.drawer-close {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text3);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.drawer-close:hover { background: var(--surface2); color: var(--text); }
+
+.drawer-nav { padding: 8px 6px; flex: 1; overflow-y: auto; }
+
+.drawer-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 8px 10px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r2);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.12s;
+  margin-bottom: 1px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+}
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active { background: rgba(124,93,250,.12); color: var(--primary-l); }
+
+.nav-item .ni-icon {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.nav-item.active .ni-icon { background: rgba(124,93,250,.18); }
+
+.drawer-history {
+  border-top: 1px solid var(--border);
+  padding: 8px 6px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.12s;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  margin-bottom: 1px;
+}
+.history-row:hover { background: var(--surface); }
+.history-row img {
+  width: 40px; height: 24px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.history-row-info { flex: 1; min-width: 0; }
+.history-row-title {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-row-ch {
+  font-size: 10px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── MAIN ── */
+#main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+.page {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+.page.active { display: flex; }
+
+/* ── PAGE HEADERS ── */
+.pg-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+.pg-head-title { font-size: 16px; font-weight: 700; margin-bottom: 1px; }
+.pg-head-sub { font-size: 11.5px; color: var(--text2); }
+
+.scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 15px;
+  border-radius: var(--r);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.12s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btn-primary   { background: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled)   { background: var(--primary-d); }
+
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+.btn-secondary:hover:not(:disabled) { background: var(--border2); }
+
+.btn-danger    { background: rgba(239,68,68,.1); color: var(--danger); border: 1px solid rgba(239,68,68,.2); }
+.btn-danger:hover:not(:disabled)    { background: rgba(239,68,68,.18); }
+
+.btn-warn      { background: rgba(245,158,11,.1); color: var(--warn); border: 1px solid rgba(245,158,11,.2); }
+.btn-warn:hover:not(:disabled)      { background: rgba(245,158,11,.18); }
+
+.btn-accent    { background: var(--accent); color: #052e1a; }
+.btn-accent:hover:not(:disabled)    { background: var(--accent-d); }
+
+.btn-sm   { padding: 5px 11px; font-size: 12px; }
+.btn-xs   { padding: 3px 8px; font-size: 11px; }
+.btn-full { width: 100%; }
+.btn-icon {
+  width: 34px; height: 34px; padding: 0;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+}
+.btn-icon:hover { background: var(--surface2); color: var(--text); }
+
+/* ── INPUTS ── */
+.inp {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.12s;
+  font-family: inherit;
+  -webkit-appearance: none;
+}
+.inp::placeholder { color: var(--text3); }
+.inp:focus { border-color: rgba(124,93,250,.5); }
+.inp-sm { padding: 7px 11px; font-size: 12.5px; }
+
+/* ── SEARCH PAGE ── */
+.search-top-bar {
+  padding: 10px 12px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.search-row { display: flex; gap: 7px; align-items: center; }
+
+#search-results { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.results-inner {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .results-inner {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+}
+
+.video-card {
+  background: var(--surface);
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.video-card:hover { border-color: rgba(124,93,250,.4); transform: translateY(-1px); }
+.video-card:active { transform: scale(0.97); }
+
+.vc-thumb {
+  position: relative;
+  padding-bottom: 56.25%;
+  background: var(--bg3);
+}
+.vc-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+.vc-info { padding: 7px 9px 9px; }
+.vc-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vc-ch {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── CHANNEL CARDS ── */
+.ch-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: 8px;
+  transition: border-color 0.12s;
+}
+.ch-card:hover { border-color: var(--border2); }
+.ch-card img {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.ch-card-info { flex: 1; min-width: 0; }
+.ch-card-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-card-subs { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.ch-card-desc {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── WHITELIST ROWS ── */
+.wl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: 7px;
+  transition: border-color 0.12s;
+}
+.wl-row-clickable {
+  cursor: pointer;
+}
+.wl-row-clickable:hover { border-color: rgba(124,93,250,.35); }
+
+.wl-row img {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.wl-row-name {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.wl-row-thumb-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  text-align: left;
+}
+.wl-row-thumb-btn .wl-row-name { color: var(--text); }
+
+.remove-btn {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text3);
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.remove-btn:hover { background: rgba(239,68,68,.12); color: var(--danger); border-color: rgba(239,68,68,.3); }
+
+/* ── SECTION CARDS ── */
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.section-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 13px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.section-card-body { padding: 12px 13px; }
+
+.section-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.section-row:last-child { border-bottom: none; }
+.section-row-label { flex: 1; }
+.section-row-label-title { font-size: 12.5px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.section-row-label-desc { font-size: 10.5px; color: var(--text3); line-height: 1.5; }
+.section-row-ctrl { flex-shrink: 0; display: flex; align-items: center; gap: 7px; }
+
+/* ── BREAK PAGE ── */
+.break-hero {
+  padding: 20px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Header row with icon + title */
+.break-hero-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.break-icon-wrap {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(245,158,11,.12);
+  border: 1px solid rgba(245,158,11,.25);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.break-hero-title-block { flex: 1; }
+.break-hero-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.break-hero-subtitle {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+/* Capsule countdown */
+.break-capsule-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.break-capsule {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 99px;
+  overflow: hidden;
+  height: 52px;
+  position: relative;
+}
+
+.break-capsule-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: rgba(245,158,11,.08);
+  border-radius: 99px;
+  transition: width 0.5s ease;
+  pointer-events: none;
+}
+.break-capsule.active .break-capsule-fill {
+  background: rgba(245,158,11,.13);
+}
+.break-capsule.exhausted .break-capsule-fill {
+  background: rgba(239,68,68,.1);
+}
+
+.break-capsule-time {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px 0 18px;
+}
+
+.break-capsule-time .big {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--text2);
+  line-height: 1;
+  letter-spacing: -0.5px;
+  transition: color 0.3s;
+}
+.break-capsule.active .break-capsule-time .big { color: var(--warn); }
+.break-capsule.exhausted .break-capsule-time .big { color: var(--danger); }
+
+.break-capsule-time .small {
+  font-size: 9px;
+  color: var(--text3);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.break-capsule-divider {
+  width: 1px;
+  height: 30px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.break-capsule-meta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px 0 12px;
+  min-width: 72px;
+}
+.break-capsule-meta .meta-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  font-family: var(--mono);
+  line-height: 1;
+}
+.break-capsule-meta .meta-lbl {
+  font-size: 9px;
+  color: var(--text3);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Status pill */
+.break-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text3);
+  transition: all 0.2s;
+}
+.break-status-pill .pill-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background 0.2s;
+}
+.break-status-pill.idle   { color: var(--text3); }
+.break-status-pill.active { color: var(--warn); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.07); }
+.break-status-pill.active .pill-dot { background: var(--warn); animation: blink 1s infinite; }
+.break-status-pill.exhausted { color: var(--danger); border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.07); }
+.break-status-pill.exhausted .pill-dot { background: var(--danger); }
+
+/* Action buttons row */
+.break-hero-btns {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.break-hero-btns .btn {
+  flex: 1;
+  border-radius: 99px;
+}
+
+/* Progress bar thin strip */
+.break-mini-bar-wrap {
+  width: 100%;
+}
+.break-mini-bar-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.break-mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--warn);
+  transition: width 0.5s ease;
+}
+
+/* Legacy selectors kept for JS compat */
+.break-progress-wrap { display: none; }
+.break-time-center .big { font-size: 22px; font-weight: 800; font-family: var(--mono); }
+.break-time-center.active .big { color: var(--warn); }
+.break-hero-label { display: none; }
+
+/* ── STATS ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 12px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 12px;
+}
+.stat-num { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; margin-bottom: 3px; }
+.stat-label { font-size: 10.5px; color: var(--text3); }
+.progress-bar { height: 4px; border-radius: 2px; background: var(--border2); overflow: hidden; margin: 5px 0 2px; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+/* ── PLAYER OVERLAY ── */
+#player-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.player-bar {
+  height: var(--header-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 9px;
+  flex-shrink: 0;
+}
+.player-close {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.player-close:hover { background: rgba(239,68,68,.12); color: var(--danger); border-color: rgba(239,68,68,.25); }
+.player-bar-title {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#player-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.iframe-wrap {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  background: #000;
+}
+.iframe-wrap iframe {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border: none;
+}
+
+.player-meta { padding: 13px; }
+.player-vid-title { font-size: 14px; font-weight: 700; line-height: 1.4; margin-bottom: 5px; }
+.player-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text3);
+  margin-bottom: 9px;
+  align-items: center;
+}
+.player-meta-row span + span::before { content: "·"; margin-right: 5px; }
+.player-desc {
+  font-size: 11.5px;
+  color: var(--text2);
+  line-height: 1.6;
+  white-space: pre-line;
+  max-height: 70px;
+  overflow: hidden;
+  transition: max-height 0.3s;
+}
+.player-desc.exp { max-height: 9999px; }
+.desc-toggle { font-size: 11.5px; color: var(--primary); cursor: pointer; margin-top: 4px; display: inline-block; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.badge-primary { background: rgba(124,93,250,.12); color: var(--primary-l); border: 1px solid rgba(124,93,250,.22); }
+.badge-accent  { background: rgba(0,201,122,.1);   color: var(--accent);    border: 1px solid rgba(0,201,122,.2); }
+.badge-warn    { background: rgba(245,158,11,.1);  color: var(--warn);      border: 1px solid rgba(245,158,11,.2); }
+.badge-danger  { background: rgba(239,68,68,.1);   color: var(--danger);    border: 1px solid rgba(239,68,68,.2); }
+
+.lock-badge { padding: 3px 8px; border-radius: var(--r); font-size: 9.5px; font-weight: 700; }
+
+/* ── EMPTY / LOADING ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 18px;
+  text-align: center;
+  gap: 7px;
+}
+.empty-icon  { font-size: 30px; opacity: 0.4; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--text2); }
+.empty-sub   { font-size: 11.5px; color: var(--text3); max-width: 270px; line-height: 1.6; }
+
+.load-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px;
+  gap: 10px;
+  color: var(--text3);
+  font-size: 12.5px;
+}
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── TOAST ── */
+#toast-wrap {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  width: calc(100% - 28px);
+  max-width: 340px;
+}
+.toast {
+  padding: 9px 14px;
+  border-radius: var(--r2);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: tin 0.18s forwards;
+  pointer-events: all;
+}
+@keyframes tin  { to { opacity: 1; transform: translateY(0); } }
+@keyframes tout { to { opacity: 0; transform: translateY(8px); } }
+.toast.out { animation: tout 0.18s forwards; }
+
+.toast-success { background: rgba(0,201,122,.12);  border: 1px solid rgba(0,201,122,.25);  color: var(--accent); }
+.toast-error   { background: rgba(239,68,68,.1);   border: 1px solid rgba(239,68,68,.25);  color: var(--danger); }
+.toast-info    { background: rgba(124,93,250,.1);  border: 1px solid rgba(124,93,250,.25); color: var(--primary-l); }
+.toast-warn    { background: rgba(245,158,11,.1);  border: 1px solid rgba(245,158,11,.25); color: var(--warn); }
+
+/* ── LOCK BANNER ── */
+.lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  background: rgba(124,93,250,.07);
+  border: 1px solid rgba(124,93,250,.16);
+  border-radius: var(--r2);
+  font-size: 11.5px;
+  color: var(--text2);
+  margin-bottom: 10px;
+}
+
+.divider { height: 1px; background: var(--border); margin: 0; }
+
+/* ── CHANNEL PAGE OVERLAY ── */
+#channel-page-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ch-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ch-page-back {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.ch-page-back:hover { background: var(--surface2); color: var(--text); }
+
+.ch-page-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.ch-page-info { flex: 1; min-width: 0; }
+.ch-page-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-page-sub  { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+#ch-page-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.ch-page-inner {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .ch-page-inner {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+}
+
+.ch-load-more-wrap {
+  padding: 12px;
+  text-align: center;
+}
+  
+/* ═══ V2 REDESIGN ADDITIONS ═══ */
+
+/* Updated color tokens */
+:root {
+  --bg:        #050508;
+  --bg2:       #0a0a10;
+  --bg3:       #0f0f18;
+  --surface:   #111120;
+  --surface2:  #181828;
+  --surface3:  #1e1e32;
+  --border:    #1c1c2e;
+  --border2:   #252540;
+  --border3:   #2e2e50;
+  --text:      #eeeef8;
+  --text2:     #7070a0;
+  --text3:     #3a3a60;
+  --primary:   #8b6fff;
+  --primary-d: #7558e8;
+  --primary-l: #b09fff;
+  --primary-glow: rgba(139,111,255,0.18);
+  --accent:    #00e896;
+  --accent-d:  #00c47e;
+  --accent-glow: rgba(0,232,150,0.15);
+  --warn:      #f5a623;
+  --warn-d:    #d48a10;
+  --warn-glow: rgba(245,166,35,0.15);
+  --danger:    #ff5252;
+  --danger-d:  #e03030;
+  --danger-glow: rgba(255,82,82,0.15);
+  --bookmark:  #4fc3f7;
+  --bookmark-glow: rgba(79,195,247,0.15);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-fast: 0.15s;
+  --t-med: 0.25s;
+  --t-slow: 0.4s;
+  --mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* Page transition animation */
+.page { animation: page-in 0.25s var(--ease) both; }
+@keyframes page-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+/* Card entry animation */
+@keyframes card-in { from { opacity:0; transform:translateY(12px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+.video-card { animation: card-in 0.25s var(--ease) both; }
+.ch-card { animation: card-in 0.25s var(--ease) both; }
+.wl-row { animation: card-in 0.25s var(--ease) both; }
+.stat-card { animation: card-in 0.25s var(--ease) both; }
+
+/* Enhanced logo */
+.logo-icon {
+  background: linear-gradient(135deg, var(--primary), var(--primary-d)) !important;
+  box-shadow: 0 0 16px var(--primary-glow);
+}
+.logo-text {
+  background: linear-gradient(135deg, var(--text), var(--primary-l));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.drawer-logo-icon {
+  background: linear-gradient(135deg, var(--primary), var(--primary-d)) !important;
+  box-shadow: 0 0 16px var(--primary-glow);
+}
+.drawer-logo-text {
+  background: linear-gradient(135deg, var(--text), var(--primary-l));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced nav items */
+.nav-item.active {
+  background: rgba(139,111,255,0.12) !important;
+  border: 1px solid rgba(139,111,255,0.2);
+}
+.nav-item.active .ni-icon {
+  background: rgba(139,111,255,0.2) !important;
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+.nav-item .ni-badge {
+  margin-left: auto;
+  min-width: 18px; height: 18px;
+  border-radius: 99px;
+  background: var(--primary);
+  color: #fff; font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 5px;
+}
+
+/* Enhanced buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-d)) !important;
+  box-shadow: 0 2px 12px var(--primary-glow);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 20px var(--primary-glow) !important;
+  transform: translateY(-1px);
+}
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent-d)) !important;
+  color: #052e1a !important;
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+.btn-accent:hover:not(:disabled) {
+  box-shadow: 0 4px 20px var(--accent-glow) !important;
+  transform: translateY(-1px);
+}
+.btn-bookmark {
+  background: rgba(79,195,247,.12);
+  color: var(--bookmark);
+  border: 1px solid rgba(79,195,247,.22);
+}
+.btn-bookmark:hover:not(:disabled) { background: rgba(79,195,247,.2); }
+.btn:active { transform: scale(0.97); }
+
+/* Enhanced video cards */
+.video-card:hover {
+  border-color: rgba(139,111,255,.4) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(139,111,255,.15) !important;
+}
+.vc-thumb { overflow: hidden; }
+.vc-thumb img { transition: transform 0.4s var(--ease); }
+.video-card:hover .vc-thumb img { transform: scale(1.04); }
+
+/* Thumbnail overlay with play button */
+.vc-thumb-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s var(--ease);
+}
+.video-card:hover .vc-thumb-overlay { background: rgba(0,0,0,0.3); }
+.vc-play-icon {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.7);
+  transition: all 0.15s var(--ease-spring);
+}
+.video-card:hover .vc-play-icon { opacity: 1; transform: scale(1); }
+
+/* Bookmark button on video cards */
+.vc-bookmark-btn {
+  position: absolute; top: 6px; right: 6px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(5,5,8,0.75); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.8);
+  transition: all 0.15s var(--ease-spring);
+  cursor: pointer; z-index: 2; backdrop-filter: blur(4px);
+}
+.video-card:hover .vc-bookmark-btn { opacity: 1; transform: scale(1); }
+.vc-bookmark-btn:hover { background: rgba(79,195,247,0.2); color: var(--bookmark); border-color: rgba(79,195,247,0.4); }
+.vc-bookmark-btn.saved { opacity: 1; transform: scale(1); color: var(--bookmark); background: rgba(79,195,247,0.15); border-color: rgba(79,195,247,0.3); }
+
+/* Enhanced remove button */
+.remove-btn:hover { transform: rotate(90deg) !important; }
+
+/* Enhanced drawer close */
+.drawer-close:hover { transform: rotate(90deg) !important; }
+
+/* Enhanced player close */
+.player-close:hover { transform: rotate(90deg) !important; }
+
+/* Enhanced channel page back */
+.ch-page-back:hover { transform: translateX(-2px) !important; }
+
+/* Enhanced break icon */
+.break-icon-wrap.active {
+  background: rgba(245,166,35,.2) !important;
+  box-shadow: 0 0 20px var(--warn-glow);
+  animation: icon-pulse 2s ease-in-out infinite;
+}
+@keyframes icon-pulse { 0%,100% { box-shadow: 0 0 20px var(--warn-glow); } 50% { box-shadow: 0 0 35px rgba(245,166,35,0.35); } }
+
+/* Enhanced break capsule */
+.break-capsule.active {
+  border-color: rgba(245,166,35,.3) !important;
+  box-shadow: 0 0 20px var(--warn-glow);
+}
+.break-capsule.exhausted {
+  border-color: rgba(255,82,82,.3) !important;
+  box-shadow: 0 0 20px var(--danger-glow);
+}
+.break-capsule-fill { transition: width 0.8s var(--ease) !important; }
+.break-mini-bar-fill { transition: width 0.8s var(--ease) !important; }
+
+/* Enhanced break status pill */
+.break-status-pill.active {
+  box-shadow: 0 0 12px var(--warn-glow);
+}
+
+/* Enhanced stat cards */
+.stat-card:hover { border-color: var(--border3) !important; transform: translateY(-2px); }
+.stat-num { font-family: var(--mono); letter-spacing: -1px; }
+
+/* Enhanced toast */
+.toast {
+  transform: translateY(12px) scale(0.95) !important;
+  animation: toast-in 0.22s var(--ease-spring) forwards !important;
+}
+@keyframes toast-in  { to { opacity:1; transform:translateY(0) scale(1) !important; } }
+@keyframes toast-out { to { opacity:0; transform:translateY(8px) scale(0.95) !important; } }
+
+/* Enhanced overlay animation */
+#player-overlay, #channel-page-overlay {
+  animation: overlay-in 0.25s var(--ease) both;
+}
+@keyframes overlay-in { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+/* Enhanced input focus */
+.inp:focus {
+  border-color: rgba(139,111,255,.5) !important;
+  box-shadow: 0 0 0 3px rgba(139,111,255,.1) !important;
+}
+
+/* Enhanced section cards */
+.section-card:hover { border-color: var(--border2) !important; }
+
+/* Enhanced wl-row */
+.wl-row:hover { border-color: var(--border3) !important; }
+
+/* Enhanced ch-card */
+.ch-card:hover { transform: translateX(2px) !important; }
+
+/* MODAL */
+#modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: 20px; opacity: 0; pointer-events: none;
+  transition: opacity 0.25s var(--ease); backdrop-filter: blur(4px);
+}
+#modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-box {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 24px; max-width: 360px; width: 100%;
+  transform: scale(0.9) translateY(20px);
+  transition: transform 0.25s var(--ease-spring);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+#modal-overlay.open .modal-box { transform: scale(1) translateY(0); }
+.modal-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 24px; }
+.modal-icon-warn { background: rgba(245,166,35,.12); border: 1px solid rgba(245,166,35,.25); }
+.modal-icon-danger { background: rgba(255,82,82,.12); border: 1px solid rgba(255,82,82,.25); }
+.modal-title { font-size: 16px; font-weight: 800; text-align: center; margin-bottom: 8px; letter-spacing: -0.3px; }
+.modal-body { font-size: 12.5px; color: var(--text2); text-align: center; line-height: 1.7; margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 10px; }
+.modal-actions .btn { flex: 1; }
+
+/* WATCH LATER PAGE */
+#page-watchlater .wl-video-list {
+  padding: 14px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px;
+}
+@media (max-width: 480px) { #page-watchlater .wl-video-list { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 12px; } }
+.wl-video-card {
+  background: var(--surface); border-radius: var(--r2); border: 1px solid var(--border);
+  overflow: hidden; cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  animation: card-in 0.25s var(--ease) both; position: relative;
+}
+.wl-video-card:hover { border-color: rgba(79,195,247,.4); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.wl-video-card .vc-remove-btn {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
+  border-radius: 50%; background: rgba(5,5,8,0.8); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text2); display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.8); transition: all 0.15s var(--ease-spring);
+  cursor: pointer; z-index: 2; backdrop-filter: blur(4px);
+}
+.wl-video-card:hover .vc-remove-btn { opacity: 1; transform: scale(1); }
+.wl-video-card .vc-remove-btn:hover { background: rgba(255,82,82,0.2); color: var(--danger); border-color: rgba(255,82,82,0.4); }
+
+/* WATCH FROM LINK PAGE */
+.wfl-hero { padding: 24px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.wfl-icon-wrap { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, rgba(139,111,255,.15), rgba(79,195,247,.1)); border: 1px solid rgba(139,111,255,.25); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 26px; }
+.wfl-title { font-size: 20px; font-weight: 800; text-align: center; margin-bottom: 6px; letter-spacing: -0.5px; }
+.wfl-sub { font-size: 12px; color: var(--text2); text-align: center; line-height: 1.7; margin-bottom: 20px; max-width: 320px; margin-left: auto; margin-right: auto; }
+.wfl-input-row { display: flex; gap: 10px; max-width: 480px; margin: 0 auto; }
+.wfl-preview { padding: 14px; max-width: 480px; margin: 0 auto; }
+.wfl-preview-card { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2); overflow: hidden; animation: card-in 0.25s var(--ease) both; }
+.wfl-preview-thumb { position: relative; padding-bottom: 56.25%; background: var(--bg3); }
+.wfl-preview-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.wfl-preview-info { padding: 12px 14px; }
+.wfl-preview-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; line-height: 1.4; }
+.wfl-preview-meta { font-size: 11.5px; color: var(--text3); margin-bottom: 12px; }
+.wfl-preview-status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--r); font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+.wfl-preview-status.allowed { background: rgba(0,232,150,.08); border: 1px solid rgba(0,232,150,.2); color: var(--accent); }
+.wfl-preview-status.break-allowed { background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.2); color: var(--warn); }
+.wfl-preview-status.blocked { background: rgba(255,82,82,.08); border: 1px solid rgba(255,82,82,.2); color: var(--danger); }
+
+/* Player actions row */
+.player-actions { display: flex; gap: 8px; padding: 0 14px 14px; flex-wrap: wrap; }
+
+/* Badge bookmark */
+.badge-bookmark { background: rgba(79,195,247,.1); color: var(--bookmark); border: 1px solid rgba(79,195,247,.2); }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <button id="menu-btn" onclick="openDrawer()" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="logo-row">
+    <div class="logo-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+    <div>
+      <div class="logo-text">StudyTube</div>
+      <div class="logo-sub">FOCUSED LEARNING</div>
+    </div>
+  </div>
+  <div id="header-right">
+    <div id="break-header-badge" class="hidden" onclick="goPage('break')" title="Break mode active — click to manage" style="cursor:pointer">
+      <div class="dot"></div>
+      <span id="break-badge-time">0:00</span>
+    </div>
+  </div>
+</div>
+
+<!-- NAV DRAWER -->
+<div id="drawer-overlay" onclick="closeDrawer()"></div>
+<div id="nav-drawer">
+  <div class="drawer-header">
+    <div class="drawer-logo-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+    <div class="drawer-logo-text">StudyTube</div>
+    <button class="drawer-close" onclick="closeDrawer()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="drawer-nav">
+    <div class="drawer-section-label">Navigation</div>
+    <button class="nav-item active" data-page="search" onclick="goPage('search')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span> Search
+    </button>
+    <button class="nav-item" data-page="watchlater" onclick="goPage('watchlater')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg></span> Watch Later
+      <span class="ni-badge hidden" id="wl-nav-badge">0</span>
+    </button>
+    <button class="nav-item" data-page="watchfromlink" onclick="goPage('watchfromlink')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Watch from Link
+    </button>
+    <button class="nav-item" data-page="channels" onclick="goPage('channels')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> Channels
+    </button>
+    <button class="nav-item" data-page="break" onclick="goPage('break')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg></span> Break Mode
+    </button>
+    <button class="nav-item" data-page="statistics" onclick="goPage('statistics')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Statistics
+    </button>
+    <button class="nav-item" data-page="settings" onclick="goPage('settings')">
+      <span class="ni-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Settings
+    </button>
+  </div>
+  <div class="drawer-history" id="drawer-history">
+    <div class="drawer-section-label">Recent Watches</div>
+    <div id="drawer-history-list"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SEARCH PAGE -->
+  <section id="page-search" class="page active">
+    <div class="search-top-bar">
+      <div class="search-row">
+        <input id="search-input" class="inp" type="search"
+          placeholder="Search whitelisted channels..."
+          onkeydown="if(event.key==='Enter') doSearch()" />
+        <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="doSearch()">Go</button>
+      </div>
+    </div>
+    <div id="search-results" class="scroll-area">
+      <div class="empty-state">
+        <div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+        <div class="empty-title">Search or paste a URL</div>
+        <div class="empty-sub">Results will only come from your whitelisted channels. Use <strong>Watch from Link</strong> to play any YouTube URL directly.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WATCH LATER PAGE -->
+  <section id="page-watchlater" class="page">
+    <div class="pg-head">
+      <div class="pg-head-title">Watch Later</div>
+      <div class="pg-head-sub">Saved videos — whitelist rules apply at playback time</div>
+    </div>
+    <div class="scroll-area">
+      <div id="watchlater-content"></div>
+    </div>
+  </section>
+
+  <!-- WATCH FROM LINK PAGE -->
+  <section id="page-watchfromlink" class="page">
+    <div class="scroll-area">
+      <div class="wfl-hero">
+        <div class="wfl-icon-wrap">&#128279;</div>
+        <div class="wfl-title">Watch from a Link</div>
+        <div class="wfl-sub">Paste any YouTube URL. We'll check if it's whitelisted and handle break mode automatically.</div>
+        <div class="wfl-input-row">
+          <input id="wfl-url-input" class="inp" type="url"
+            placeholder="https://youtube.com/watch?v=..."
+            onkeydown="if(event.key==='Enter') watchFromLink()" />
+          <button class="btn btn-primary btn-sm" style="flex-shrink:0" onclick="watchFromLink()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Go
+          </button>
+        </div>
+      </div>
+      <div id="wfl-preview" class="wfl-preview"></div>
+    </div>
+  </section>
+
+  <!-- CHANNELS PAGE -->
+  <section id="page-channels" class="page">
+    <div class="pg-head">
+      <div class="pg-head-title">Channels</div>
+      <div class="pg-head-sub">Manage your study channel whitelist</div>
+    </div>
+    <div style="padding:10px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0">
+      <div class="search-row">
+        <input id="ch-search-inp" class="inp inp-sm" type="search"
+          placeholder="Search a channel to add..."
+          onkeydown="if(event.key==='Enter') searchChannels('whitelist')" />
+        <button class="btn btn-primary btn-sm" style="flex-shrink:0"
+          onclick="searchChannels('whitelist')">Search</button>
+      </div>
+    </div>
+    <div id="channels-content" class="scroll-area" style="padding:12px"></div>
+  </section>
+
+  <!-- BREAK PAGE -->
+  <section id="page-break" class="page">
+    <div class="break-hero">
+
+      <!-- Title row -->
+      <div class="break-hero-header">
+        <div class="break-icon-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn)"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg>
+        </div>
+        <div class="break-hero-title-block">
+          <div class="break-hero-title">Break Mode</div>
+          <div class="break-hero-subtitle">Temporarily bypass your whitelist</div>
+        </div>
+        <!-- Status pill (live) -->
+        <div class="break-status-pill idle" id="break-status-pill">
+          <div class="pill-dot"></div>
+          <span id="break-status-text">Idle</span>
+        </div>
+      </div>
+
+      <!-- Capsule countdown -->
+      <div class="break-capsule-row">
+        <div class="break-capsule" id="break-capsule">
+          <div class="break-capsule-fill" id="break-capsule-fill" style="width:0%"></div>
+          <div class="break-capsule-time">
+            <div class="big" id="break-ring-time">0:00</div>
+            <div class="small">remaining</div>
+          </div>
+          <div class="break-capsule-divider"></div>
+          <div class="break-capsule-meta">
+            <div class="meta-val" id="break-used-min">0</div>
+            <div class="meta-lbl">used (min)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thin progress bar -->
+      <div class="break-mini-bar-wrap">
+        <div class="break-mini-bar-track">
+          <div class="break-mini-bar-fill" id="break-usage-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="break-hero-btns">
+        <button id="break-start-btn" class="btn btn-warn btn-sm" onclick="startBreak()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Break
+        </button>
+        <button id="break-stop-btn" class="btn btn-danger btn-sm hidden" onclick="stopBreakTap()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> End Break
+        </button>
+      </div>
+
+      <!-- Hidden compat elements for JS -->
+      <div id="break-time-center" class="break-time-center" style="display:none">
+        <div class="big"></div>
+      </div>
+      <div id="break-hero-label" style="display:none"></div>
+    </div>
+
+    <div class="scroll-area" style="padding:12px">
+
+      <!-- Usage card -->
+      <div class="section-card">
+        <div class="section-card-head">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Usage Today
+        </div>
+        <div class="section-card-body">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+            <span style="font-size:11.5px;color:var(--text2)" id="break-used-label">0 min used</span>
+            <span style="font-size:10.5px;color:var(--text3)" id="break-left-label">— of — min</span>
+          </div>
+          <div class="progress-bar" style="height:5px;border-radius:3px">
+            <div class="progress-fill" id="break-usage-bar-2" style="background:var(--warn);width:0%;border-radius:3px"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:5px">🔁 Resets automatically at midnight</div>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="section-card">
+        <div class="section-card-head">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          How It Works
+        </div>
+        <div class="section-card-body">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--text2);line-height:1.5">
+              <span style="font-size:14px;line-height:1;flex-shrink:0">▶</span>
+              <span>Start a break to watch <strong style="color:var(--text)">any YouTube video</strong> — your whitelist is temporarily bypassed.</span>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--text2);line-height:1.5">
+              <span style="font-size:14px;line-height:1;flex-shrink:0">⏱</span>
+              <span>The countdown runs while the break is active. Time restores automatically at midnight.</span>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:9px;font-size:11.5px;color:var(--text2);line-height:1.5">
+              <span style="font-size:14px;line-height:1;flex-shrink:0">⚙</span>
+              <span>Set your daily limit in <strong style="color:var(--text)">Settings → Break Mode</strong>.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Break Channels -->
+      <div class="section-card">
+        <div class="section-card-head" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            Break Channels
+          </div>
+          <button id="bk-edit-btn" class="btn btn-warn btn-xs" style="border-radius:99px" onclick="openBreakChDraft()">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit
+          </button>
+        </div>
+        <div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+          <div class="search-row">
+            <input id="bk-ch-search-inp" class="inp inp-sm" type="search"
+              placeholder="Search a channel to add..."
+              onkeydown="if(event.key==='Enter') searchChannels('break')" />
+            <button class="btn btn-warn btn-sm" style="flex-shrink:0" onclick="searchChannels('break')">Add</button>
+          </div>
+        </div>
+        <div id="break-channels-list" style="padding:8px 12px"></div>
+        <div style="padding:0 12px 8px">
+          <span id="break-ch-lock-note" style="font-size:10.5px"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- STATISTICS PAGE -->
+  <section id="page-statistics" class="page">
+    <div class="pg-head">
+      <div class="pg-head-title">Statistics</div>
+      <div class="pg-head-sub">Your learning habits at a glance</div>
+    </div>
+    <div class="scroll-area">
+      <div id="stats-content"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS PAGE -->
+  <section id="page-settings" class="page">
+    <div class="pg-head">
+      <div class="pg-head-title">Settings</div>
+      <div class="pg-head-sub">API key, break limit, and whitelist control</div>
+    </div>
+    <div class="scroll-area">
+      <div style="padding:12px" id="settings-content">
+
+        <!-- API Keys -->
+        <div class="section-card">
+          <div class="section-card-head" style="justify-content:space-between">
+            YouTube API Keys
+            <div id="api-key-indicator" style="margin-left:auto"></div>
+          </div>
+          <div class="section-card-body">
+            <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+              Get keys from <strong style="color:var(--text2)">console.cloud.google.com</strong> → APIs &amp; Services → Credentials.
+              Set restriction to <strong style="color:var(--text2)">"None"</strong> to avoid Error 403 locally.<br>
+              Key 1 is used first. If its quota is exhausted, Key 2 takes over automatically.
+            </div>
+
+            <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Key 1 (Primary)</div>
+            <div style="display:flex;gap:7px;margin-bottom:6px;align-items:center">
+              <input id="api-key-inp" class="inp inp-sm" type="password"
+                placeholder="AIza..." style="flex:1;font-family:var(--font-mono,monospace)" />
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0;padding:0 8px" onclick="toggleKeyVisibility('api-key-inp','eye-icon-1')" title="Show/hide key">
+                <svg id="eye-icon-1" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0;padding:0 8px" onclick="copyApiKey('api-key-inp','copy-icon-1')" title="Copy key">
+                <svg id="copy-icon-1" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="btn btn-primary btn-sm" style="flex-shrink:0" onclick="saveApiKey()">Save</button>
+            </div>
+            <div id="api-key-status" style="font-size:10.5px;margin-bottom:10px;color:var(--text3)"></div>
+
+            <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Key 2 (Backup)</div>
+            <div style="display:flex;gap:7px;margin-bottom:5px;align-items:center">
+              <input id="api-key-2-inp" class="inp inp-sm" type="password"
+                placeholder="AIza..." style="flex:1;font-family:var(--font-mono,monospace)" />
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0;padding:0 8px" onclick="toggleKeyVisibility('api-key-2-inp','eye-icon-2')" title="Show/hide key">
+                <svg id="eye-icon-2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0;padding:0 8px" onclick="copyApiKey('api-key-2-inp','copy-icon-2')" title="Copy key">
+                <svg id="copy-icon-2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="saveApiKey2()">Save</button>
+            </div>
+            <div id="api-key-2-status" style="font-size:10.5px;color:var(--text3)"></div>
+          </div>
+        </div>
+
+        <!-- Break Mode Settings -->
+        <div class="section-card">
+          <div class="section-card-head">Break Mode</div>
+          <div class="section-card-body">
+            <div class="section-row">
+              <div class="section-row-label">
+                <div class="section-row-label-title">Daily Break Limit</div>
+                <div class="section-row-label-desc">Total minutes allowed per day for non-whitelisted content.</div>
+              </div>
+              <div class="section-row-ctrl">
+                <input id="break-limit-inp" class="inp inp-sm" type="number"
+                  min="1" max="180" value="20" style="width:64px" />
+                <span style="font-size:11.5px;color:var(--text3)">min</span>
+                <button id="break-limit-save-btn" class="btn btn-primary btn-sm" onclick="saveBreakLimit()">Save</button>
+              </div>
+            </div>
+            <div style="padding:0 0 6px">
+              <span id="break-limit-note" style="font-size:10.5px"></span>
+            </div>
+            <div class="section-row">
+              <div class="section-row-label">
+                <div class="section-row-label-title">Used Today</div>
+                <div class="section-row-label-desc">Resets automatically at midnight. Cannot be manually reset.</div>
+              </div>
+              <div class="section-row-ctrl">
+                <span id="settings-break-used" style="font-size:12.5px;color:var(--text2)">0 / 20</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add to Whitelist -->
+        <div class="section-card">
+          <div class="section-card-head">Add to Whitelist</div>
+          <div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+            <div class="search-row">
+              <input id="st-wl-search" class="inp inp-sm" type="search"
+                placeholder="Search channel to whitelist..."
+                onkeydown="if(event.key==='Enter') searchChannels('whitelist-settings')" />
+              <button class="btn btn-primary btn-sm" style="flex-shrink:0"
+                onclick="searchChannels('whitelist-settings')">Search</button>
+            </div>
+          </div>
+          <div id="settings-wl-results" style="padding:8px 12px"></div>
+          <div id="settings-wl-list" style="padding:0 12px 8px"></div>
+        </div>
+
+        <!-- Add to Break Channels -->
+        <div class="section-card">
+          <div class="section-card-head">Add to Break Channels</div>
+          <div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+            <div class="search-row">
+              <input id="st-bk-search" class="inp inp-sm" type="search"
+                placeholder="Search channel for break mode..."
+                onkeydown="if(event.key==='Enter') searchChannels('break-settings')" />
+              <button class="btn btn-warn btn-sm" style="flex-shrink:0"
+                onclick="searchChannels('break-settings')">Search</button>
+            </div>
+          </div>
+          <div id="settings-bk-results" style="padding:8px 12px"></div>
+          <div id="settings-bk-list" style="padding:0 12px 4px"></div>
+          <div style="padding:0 12px 10px">
+            <span id="settings-bk-lock-note" style="font-size:10.5px"></span>
+          </div>
+        </div>
+
+        <!-- Whitelist Lock -->
+        <div class="section-card">
+          <div class="section-card-head">Whitelist Lock</div>
+          <div class="section-card-body">
+            <div class="section-row">
+              <div class="section-row-label">
+                <div class="section-row-label-title">Lock Status</div>
+                <div class="section-row-label-desc" id="lock-desc-text">
+                  Lock the whitelist to prevent accidental changes. You get 1 edit after locking.
+                </div>
+              </div>
+              <div class="section-row-ctrl" style="flex-direction:column;gap:5px;align-items:flex-end">
+                <span id="lock-badge-el"></span>
+                <button id="lock-btn" class="btn btn-primary btn-sm" onclick="toggleWhitelistLock()">Lock</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</div><!-- /#main -->
+
+<!-- CHANNEL VIDEOS PAGE OVERLAY -->
+<div id="channel-page-overlay" class="hidden">
+  <div class="ch-page-header">
+    <button class="ch-page-back" onclick="closeChannelPage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <img class="ch-page-avatar" id="ch-page-avatar" src="" alt="" onerror="this.style.opacity=0" />
+    <div class="ch-page-info">
+      <div class="ch-page-name" id="ch-page-name">Channel</div>
+      <div class="ch-page-sub" id="ch-page-sub">Videos</div>
+    </div>
+  </div>
+  <div id="ch-page-content">
+    <div id="ch-page-grid" class="ch-page-inner"></div>
+    <div id="ch-load-more-wrap" class="ch-load-more-wrap hidden">
+      <button class="btn btn-secondary btn-sm" id="ch-load-more-btn" onclick="loadMoreChannelVideos()">Load more</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-icon modal-icon-warn" id="modal-icon">&#9888;&#65039;</div>
+    <div class="modal-title" id="modal-title">Confirm</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYER OVERLAY -->
+<div id="player-overlay" class="hidden">
+  <div class="player-bar">
+    <button class="player-close" onclick="closePlayer()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="player-bar-title" id="player-bar-title">Loading...</div>
+    <div id="player-bar-badges"></div>
+  </div>
+  <div id="player-body">
+    <div id="player-loading" class="load-state">
+      <div class="spinner"></div>
+      <span>Checking video...</span>
+    </div>
+    <div id="player-error" class="empty-state hidden">
+      <div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+      <div class="empty-title" id="player-err-title">Blocked</div>
+      <div class="empty-sub" id="player-err-msg"></div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="closePlayer()">Go Back</button>
+    </div>
+    <div id="player-content" class="hidden">
+      <div class="iframe-wrap">
+        <iframe id="yt-iframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="YouTube video player"></iframe>
+      </div>
+      <div class="player-meta" id="player-meta"></div>
+      <div class="player-actions" id="player-actions"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+/* ── STORAGE KEYS ── */
+const SK = {
+  API_KEY:       "st_api_key",
+  API_KEY_2:     "st_api_key_2",
+  ACTIVE_KEY:    "st_active_key",
+  WHITELIST:     "st_whitelist",
+  BREAK_CH:         "st_break_channels",
+  BREAK_CH_SET_AT:  "st_break_ch_set_at",
+  WL_LOCKED:     "st_wl_locked",
+  WL_EDITS:      "st_wl_edits",
+  HISTORY:       "st_history",
+  BREAK_LIMIT:      "st_break_limit",
+  BREAK_LIMIT_SET_AT: "st_break_limit_set_at",
+  BREAK_USAGE:   "st_break_usage",
+  BREAK_ACTIVE:       "st_break_active",
+  BREAK_START_TS:     "st_break_start_ts",
+  STATS:              "st_stats",
+  WATCH_LATER:        "st_watch_later",
+};
+
+/* ── STORAGE HELPERS ── */
+function load(k, fb) {
+  try { const v = localStorage.getItem(k); return v === null ? fb : JSON.parse(v); }
+  catch { return fb; }
+}
+function save(k, v)  { localStorage.setItem(k, JSON.stringify(v)); }
+function today()     { return new Date().toISOString().split("T")[0]; }
+
+function getBreakUsage() {
+  const u = load(SK.BREAK_USAGE, { date: today(), usedSeconds: 0 });
+  if (u.date !== today()) {
+    const f = { date: today(), usedSeconds: 0 };
+    save(SK.BREAK_USAGE, f);
+    return f;
+  }
+  return u;
+}
+function getBreakLimitSec()  { return load(SK.BREAK_LIMIT, 20) * 60; }
+function getRemBreakSec()    { return Math.max(0, getBreakLimitSec() - getBreakUsage().usedSeconds); }
+function addBreakUsageSec(s) { const u = getBreakUsage(); u.usedSeconds += s; save(SK.BREAK_USAGE, u); }
+
+function getWhitelist()  { return load(SK.WHITELIST, []); }
+function getBreakChs()   { return load(SK.BREAK_CH, []); }
+function getHistory()    { return load(SK.HISTORY, []); }
+function getStats()      { return load(SK.STATS, []); }
+function apiKey()        { return load(SK.API_KEY, ""); }
+function apiKey2()       { return load(SK.API_KEY_2, ""); }
+function getActiveKey()  { return load(SK.ACTIVE_KEY, 1); }
+function setActiveKey(n) { save(SK.ACTIVE_KEY, n); updateApiKeyIndicator(); }
+function isWlLocked()   { return load(SK.WL_LOCKED, false); }
+function getEditsLeft() { return load(SK.WL_EDITS, 1); }
+function isWlCh(id)     { return getWhitelist().some(c => c.channelId === id); }
+function isBreakCh(id)  { return getBreakChs().some(c => c.channelId === id); }
+
+/* ── WATCH LATER MODULE ── */
+const WatchLater = {
+  get()    { return load(SK.WATCH_LATER, []); },
+  set(arr) { save(SK.WATCH_LATER, arr); },
+  has(videoId) { return WatchLater.get().some(v => v.videoId === videoId); },
+  add(item) {
+    const list = WatchLater.get().filter(v => v.videoId !== item.videoId);
+    list.unshift({ ...item, savedAt: new Date().toISOString() });
+    WatchLater.set(list.slice(0, 200));
+    updateWatchLaterBadge();
+  },
+  remove(videoId) {
+    WatchLater.set(WatchLater.get().filter(v => v.videoId !== videoId));
+    updateWatchLaterBadge();
+  },
+  count() { return WatchLater.get().length; },
+};
+
+function updateWatchLaterBadge() {
+  const badge = document.getElementById("wl-nav-badge");
+  if (!badge) return;
+  const n = WatchLater.count();
+  badge.textContent = n;
+  badge.classList.toggle("hidden", n === 0);
+}
+
+function addHistory(item) {
+  const h = getHistory().filter(x => x.videoId !== item.videoId);
+  h.unshift({ ...item, watchedAt: new Date().toISOString() });
+  save(SK.HISTORY, h.slice(0, 50));
+}
+
+function recordStat(channelId) {
+  const stats = getStats();
+  let row = stats.find(s => s.date === today());
+  if (!row) { row = { date: today(), videos: 0, channels: [] }; stats.unshift(row); }
+  row.videos += 1;
+  if (!row.channels.includes(channelId)) row.channels.push(channelId);
+  save(SK.STATS, stats.slice(0, 30));
+}
+
+/* ── CHANNEL REGISTRY ── */
+const chReg = new Map();
+let regIdx = 0;
+function regCh(ch) { const id = ++regIdx; chReg.set(id, ch); return id; }
+
+/* ── YOUTUBE API ── */
+const YT_BASE = "https://www.googleapis.com/youtube/v3";
+
+async function ytFetch(path, params) {
+  const k1 = apiKey();
+  const k2 = apiKey2();
+  if (!k1 && !k2) throw new Error("No API key. Go to Settings → add your YouTube Data API v3 key.");
+
+  const active  = getActiveKey();
+  const ordered = (active === 2 && k2) ? [[2, k2],[1, k1]] : [[1, k1],[2, k2]];
+  const pairs   = ordered.filter(([, k]) => !!k);
+
+  let lastErr;
+  for (let i = 0; i < pairs.length; i++) {
+    const [num, key] = pairs[i];
+    const url = new URL(YT_BASE + path);
+    Object.entries({ ...params, key }).forEach(([k, v]) => url.searchParams.set(k, v));
+    url.searchParams.set("_", Date.now());
+    const res  = await fetch(url.toString(), { cache: "no-store" });
+    const data = await res.json();
+
+    if (res.ok) {
+      if (num !== getActiveKey()) setActiveKey(num);
+      return data;
+    }
+
+    const msg  = data?.error?.message || "API error " + res.status;
+    const code = data?.error?.errors?.[0]?.reason || "";
+    const isQuota = res.status === 403 || res.status === 429
+      || code === "quotaExceeded" || code === "dailyLimitExceeded";
+
+    if (isQuota && i === 0 && pairs.length > 1) {
+      toast(`Key ${num} quota exceeded — switching to Key ${pairs[1][0]}.`, "warn");
+      lastErr = new Error(msg);
+      continue;
+    }
+
+    if (res.status === 403 && (code === "ipRefererBlocked" || code === "accessNotConfigured")) {
+      throw new Error(msg + "\n\nFix: In Google Cloud Console → Credentials → your key → Application restrictions → set to 'None'.");
+    }
+    throw new Error(msg);
+  }
+  throw lastErr || new Error("All API keys exhausted.");
+}
+
+function updateApiKeyIndicator() {
+  const active = getActiveKey();
+  const k1ok   = !!apiKey();
+  const k2ok   = !!apiKey2();
+  const el     = document.getElementById("api-key-indicator");
+  if (!el) return;
+
+  if (!k1ok && !k2ok) {
+    el.innerHTML = `<span class="badge badge-danger">No keys set</span>`;
+    return;
+  }
+
+  const dot = n => {
+    const isActive = n === active;
+    const hasKey   = n === 1 ? k1ok : k2ok;
+    if (!hasKey) return `<span class="badge badge-danger" style="font-size:9px">Key ${n} — none</span>`;
+    return `<span class="badge ${isActive ? "badge-accent" : "badge-primary"}" style="font-size:9px">
+      ${isActive ? "● " : "○ "}Key ${n}${isActive ? " (active)" : ""}
+    </span>`;
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      ${dot(1)} ${dot(2)}
+      ${k1ok && k2ok ? `<button class="btn btn-secondary btn-xs" onclick="switchApiKey()" style="margin-left:2px">Switch</button>` : ""}
+    </div>`;
+}
+
+function switchApiKey() {
+  const next = getActiveKey() === 1 ? 2 : 1;
+  setActiveKey(next);
+  toast(`Switched to Key ${next}.`, "info");
+  renderSettingsPage();
+}
+
+async function fetchVideoDetails(id) {
+  const d = await ytFetch("/videos", { part: "snippet,contentDetails,statistics", id });
+  if (!d.items?.length) throw new Error("Video not found.");
+  const it = d.items[0];
+  return {
+    id,
+    title:        it.snippet.title,
+    channelId:    it.snippet.channelId,
+    channelTitle: it.snippet.channelTitle,
+    thumbnail:    (it.snippet.thumbnails?.maxres || it.snippet.thumbnails?.high || it.snippet.thumbnails?.medium)?.url || "",
+    description:  it.snippet.description || "",
+    publishedAt:  it.snippet.publishedAt || "",
+    duration:     it.contentDetails?.duration || "",
+    viewCount:    it.statistics?.viewCount || "0",
+  };
+}
+
+async function ytSearchChannels(q) {
+  const s = await ytFetch("/search", { part: "snippet", type: "channel", q, maxResults: 8 });
+  if (!s.items?.length) return [];
+  const ids = s.items.map(i => i.snippet?.channelId || i.id?.channelId).filter(Boolean).join(",");
+  const d   = await ytFetch("/channels", { part: "snippet,statistics", id: ids });
+  return (d.items || []).map(item => ({
+    channelId:       item.id,
+    title:           item.snippet.title,
+    thumbnail:       item.snippet.thumbnails?.default?.url || "",
+    description:     item.snippet.description || "",
+    subscriberCount: item.statistics?.subscriberCount || "",
+  }));
+}
+
+async function searchVideosInChannel(q, channelId) {
+  const d = await ytFetch("/search", { part: "snippet", type: "video", q, channelId, maxResults: 5, order: "relevance" });
+  return (d.items || []).map(i => ({
+    id: i.id.videoId,
+    title:        i.snippet.title,
+    channelId:    i.snippet.channelId,
+    channelTitle: i.snippet.channelTitle,
+    thumbnail:    (i.snippet.thumbnails?.high || i.snippet.thumbnails?.medium)?.url || "",
+    publishedAt:  i.snippet.publishedAt || "",
+  }));
+}
+
+async function getChannelVideos(channelId, max = 10, pageToken = "") {
+  const params = { part: "snippet", type: "video", channelId, maxResults: max, order: "date" };
+  if (pageToken) params.pageToken = pageToken;
+  const d = await ytFetch("/search", params);
+  return {
+    videos: (d.items || []).map(i => ({
+      id: i.id.videoId,
+      title:        i.snippet.title,
+      channelId:    i.snippet.channelId,
+      channelTitle: i.snippet.channelTitle,
+      thumbnail:    (i.snippet.thumbnails?.high || i.snippet.thumbnails?.medium)?.url || "",
+      publishedAt:  i.snippet.publishedAt || "",
+    })),
+    nextPageToken: d.nextPageToken || null,
+  };
+}
+
+/* ── FORMAT HELPERS ── */
+function fmtSec(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function parseDur(iso) {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return "";
+  const h = +(m[1]||0), min = +(m[2]||0), s = +(m[3]||0);
+  return h > 0 ? `${h}:${pad(min)}:${pad(s)}` : `${min}:${pad(s)}`;
+}
+
+function fmtViews(n) {
+  n = parseInt(n) || 0;
+  if (n >= 1e6) return (n/1e6).toFixed(1) + "M views";
+  if (n >= 1e3) return (n/1e3).toFixed(1) + "K views";
+  return n + " views";
+}
+
+function fmtSubs(n) {
+  if (!n) return "";
+  n = parseInt(n);
+  if (n >= 1e6) return (n/1e6).toFixed(1) + "M subscribers";
+  if (n >= 1e3) return (n/1e3).toFixed(0) + "K subscribers";
+  return n + " subscribers";
+}
+
+function timeAgo(ds) {
+  const d = Math.floor((Date.now() - new Date(ds)) / 86400000);
+  if (d === 0) return "today";
+  if (d === 1) return "yesterday";
+  if (d < 30)  return d + "d ago";
+  if (d < 365) return Math.floor(d/30) + "mo ago";
+  return Math.floor(d/365) + "y ago";
+}
+
+function esc(s) {
+  const el = document.createElement("div");
+  el.textContent = s;
+  return el.innerHTML;
+}
+
+/* ── TOAST ── */
+function toast(msg, type = "info", duration = 3200) {
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById("toast-wrap").appendChild(el);
+  setTimeout(() => {
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 220);
+  }, duration);
+}
+
+/* ── MODAL ── */
+let _modalResolve = null;
+function showModal({ icon = "⚠️", iconClass = "modal-icon-warn", title, body, confirmText = "Confirm", confirmClass = "btn-primary", cancelText = "Cancel" }) {
+  return new Promise(resolve => {
+    _modalResolve = resolve;
+    document.getElementById("modal-icon").textContent = icon;
+    document.getElementById("modal-icon").className = "modal-icon " + iconClass;
+    document.getElementById("modal-title").textContent = title;
+    document.getElementById("modal-body").innerHTML = body;
+    const confirmBtn = document.getElementById("modal-confirm");
+    confirmBtn.textContent = confirmText;
+    confirmBtn.className = "btn " + confirmClass;
+    confirmBtn.onclick = () => { closeModal(); resolve(true); };
+    document.getElementById("modal-cancel").textContent = cancelText;
+    document.getElementById("modal-overlay").classList.add("open");
+  });
+}
+function closeModal() {
+  document.getElementById("modal-overlay").classList.remove("open");
+  if (_modalResolve) { _modalResolve(false); _modalResolve = null; }
+}
+
+/* ── NAVIGATION DRAWER ── */
+function openDrawer() {
+  document.getElementById("nav-drawer").classList.add("open");
+  document.getElementById("drawer-overlay").classList.add("open");
+}
+function closeDrawer() {
+  document.getElementById("nav-drawer").classList.remove("open");
+  document.getElementById("drawer-overlay").classList.remove("open");
+}
+
+function goPage(name) {
+  closeDrawer();
+  document.querySelectorAll(".page").forEach(p => {
+    const isTarget = p.id === "page-" + name;
+    p.classList.toggle("active", isTarget);
+    if (isTarget) { p.style.animation = "none"; p.offsetHeight; p.style.animation = ""; }
+  });
+  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === name));
+  if (name === "statistics")    renderStats();
+  if (name === "channels")      renderChannelsPage();
+  if (name === "break")         { updateBreakUI(); renderBreakChannels(); }
+  if (name === "settings")      renderSettingsPage();
+  if (name === "watchlater")    renderWatchLaterPage();
+}
+
+/* ── CHANNEL PAGE OVERLAY ── */
+let _chPageState = {
+  channelId: null,
+  channelTitle: "",
+  thumbnail: "",
+  nextPageToken: null,
+  videoCount: 0,
+};
+
+async function openChannelPage(channelId, channelTitle, thumbnail) {
+  if (!apiKey()) { toast("Set your API key in Settings first.", "error"); return; }
+
+  const overlay = document.getElementById("channel-page-overlay");
+  overlay.classList.remove("hidden");
+
+  document.getElementById("ch-page-name").textContent = channelTitle || "Channel";
+  document.getElementById("ch-page-sub").textContent = "Loading videos...";
+  const avatarEl = document.getElementById("ch-page-avatar");
+  avatarEl.src = thumbnail || "";
+
+  const grid    = document.getElementById("ch-page-grid");
+  const moreWrap = document.getElementById("ch-load-more-wrap");
+  grid.innerHTML = `<div style="grid-column:1/-1"><div class="load-state"><div class="spinner"></div><span>Loading videos...</span></div></div>`;
+  moreWrap.classList.add("hidden");
+
+  _chPageState = { channelId, channelTitle, thumbnail, nextPageToken: null, videoCount: 0 };
+
+  try {
+    const { videos, nextPageToken } = await getChannelVideos(channelId, 10);
+    _chPageState.nextPageToken = nextPageToken;
+    _chPageState.videoCount = videos.length;
+
+    grid.innerHTML = "";
+    if (!videos.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1"><div class="empty-state"><div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="empty-title">No videos found</div></div></div>`;
+      document.getElementById("ch-page-sub").textContent = "0 videos";
+      return;
+    }
+
+    appendChannelVideos(videos);
+    document.getElementById("ch-page-sub").textContent = `${videos.length} videos`;
+
+    if (nextPageToken) {
+      moreWrap.classList.remove("hidden");
+      document.getElementById("ch-load-more-btn").disabled = false;
+      document.getElementById("ch-load-more-btn").textContent = "Load more";
+    }
+  } catch (err) {
+    grid.innerHTML = `<div style="grid-column:1/-1"><div class="empty-state"><div class="empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="empty-title">Failed to load</div><div class="empty-sub">${esc(err.message)}</div></div></div>`;
+    document.getElementById("ch-page-sub").textContent = "";
+  }
+}
+
+function appendChannelVideos(videos) {
+  const grid = document.getElementById("ch-page-grid");
+  videos.forEach((v, i) => {
+    const card = document.createElement("div");
+    card.className = "video-card";
+    card.style.animationDelay = (i * 40) + "ms";
+    const isSaved = WatchLater.has(v.id);
+    card.innerHTML = `
+      <div class="vc-thumb">
+        <img src="${esc(v.thumbnail)}" alt="" loading="lazy" onerror="this.style.opacity=0" />
+        <div class="vc-thumb-overlay"><div class="vc-play-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+        <button class="vc-bookmark-btn ${isSaved ? "saved" : ""}" data-wl-id="${esc(v.id)}" title="${isSaved ? "Remove from Watch Later" : "Save to Watch Later"}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+        </button>
+      </div>
+      <div class="vc-info">
+        <div class="vc-title">${esc(v.title)}</div>
+        <div class="vc-ch">${v.publishedAt ? timeAgo(v.publishedAt) : ""}</div>
+      </div>`;
+    const bookmarkBtn = card.querySelector(".vc-bookmark-btn");
+    bookmarkBtn._videoObj = {id: v.id, title: v.title, channelTitle: v.channelTitle, thumbnail: v.thumbnail, channelId: v.channelId};
+    bookmarkBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      toggleWatchLater(this._videoObj);
+      const saved = WatchLater.has(this._videoObj.id);
+      this.classList.toggle("saved", saved);
+      this.title = saved ? "Remove from Watch Later" : "Save to Watch Later";
+      const svg = this.querySelector("svg");
+      if (svg) svg.setAttribute("fill", saved ? "currentColor" : "none");
+    });
+    card.addEventListener("click", () => playVideo(v.id));
+    grid.appendChild(card);
+  });
+}
+
+async function loadMoreChannelVideos() {
+  const btn = document.getElementById("ch-load-more-btn");
+  if (!_chPageState.channelId || !_chPageState.nextPageToken) return;
+
+  btn.disabled = true;
+  btn.textContent = "Loading...";
+
+  try {
+    const { videos, nextPageToken } = await getChannelVideos(_chPageState.channelId, 10, _chPageState.nextPageToken);
+    _chPageState.nextPageToken = nextPageToken;
+    _chPageState.videoCount += videos.length;
+
+    appendChannelVideos(videos);
+    document.getElementById("ch-page-sub").textContent = `${_chPageState.videoCount} videos`;
+
+    if (nextPageToken) {
+      btn.disabled = false;
+      btn.textContent = "Load more";
+    } else {
+      document.getElementById("ch-load-more-wrap").classList.add("hidden");
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "Load more";
+    toast("Failed to load more videos.", "error");
+  }
+}
+
+function closeChannelPage() {
+  document.getElementById("channel-page-overlay").classList.add("hidden");
+  _chPageState = { channelId: null, channelTitle: "", thumbnail: "", nextPageToken: null, videoCount: 0 };
+}
+
+/* ── BREAK MODE — wall-clock accurate timer ── */
+let breakInterval = null;
+let _nearExpiryWarned = false;
+function isBreakActive() { return load(SK.BREAK_ACTIVE, false); }
+
+function _startTimer() {
+  if (breakInterval) clearInterval(breakInterval);
+  _nearExpiryWarned = false;
+  breakInterval = setInterval(() => {
+    // Compute elapsed from wall-clock start timestamp for accuracy across reloads
+    const startTs = load(SK.BREAK_START_TS, null);
+    if (startTs) {
+      const elapsedSec = Math.floor((Date.now() - new Date(startTs).getTime()) / 1000);
+      const usage = getBreakUsage();
+      if (elapsedSec > usage.usedSeconds) { usage.usedSeconds = elapsedSec; save(SK.BREAK_USAGE, usage); }
+    } else { addBreakUsageSec(1); }
+    const rem = getRemBreakSec();
+    // Near-expiry warning at ~60 seconds
+    if (!_nearExpiryWarned && rem > 0 && rem <= 60) {
+      _nearExpiryWarned = true;
+      toast("⚠️ Break time almost up — " + rem + " seconds remaining!", "warn", 5000);
+    }
+    if (rem <= 0) {
+      clearInterval(breakInterval); breakInterval = null;
+      save(SK.BREAK_ACTIVE, false);
+      localStorage.removeItem(SK.BREAK_START_TS);
+      updateBreakUI();
+      toast("Break time exhausted for today! Whitelist rules are back in effect.", "warn", 5000);
+    } else { updateBreakUI(); }
+  }, 1000);
+}
+
+function startBreak() {
+  if (getRemBreakSec() <= 0) { toast("Daily break limit exhausted. Resets at midnight.", "warn"); return; }
+  save(SK.BREAK_ACTIVE, true);
+  save(SK.BREAK_START_TS, new Date().toISOString());
+  _startTimer();
+  updateBreakUI();
+  toast("Break started — timer is running.", "warn");
+}
+
+function stopBreak() {
+  // Flush elapsed time before stopping
+  const startTs = load(SK.BREAK_START_TS, null);
+  if (startTs) {
+    const elapsedSec = Math.floor((Date.now() - new Date(startTs).getTime()) / 1000);
+    const usage = getBreakUsage();
+    if (elapsedSec > usage.usedSeconds) { usage.usedSeconds = elapsedSec; save(SK.BREAK_USAGE, usage); }
+  }
+  save(SK.BREAK_ACTIVE, false);
+  localStorage.removeItem(SK.BREAK_START_TS);
+  if (breakInterval) { clearInterval(breakInterval); breakInterval = null; }
+  updateBreakUI();
+  toast("Break ended. Whitelist rules are back in effect.", "info");
+}
+
+let _stopBreakPending = false;
+let _stopBreakTimer   = null;
+function stopBreakTap() {
+  if (_stopBreakPending) {
+    // Second tap — confirmed
+    clearTimeout(_stopBreakTimer);
+    _stopBreakPending = false;
+    const btn = document.getElementById("break-stop-btn");
+    if (btn) { btn.textContent = ""; btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> End Break'; }
+    stopBreak();
+  } else {
+    // First tap — ask to confirm
+    _stopBreakPending = true;
+    const btn = document.getElementById("break-stop-btn");
+    if (btn) btn.textContent = "Tap again to confirm";
+    _stopBreakTimer = setTimeout(() => {
+      _stopBreakPending = false;
+      const b = document.getElementById("break-stop-btn");
+      if (b) b.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> End Break';
+    }, 2500);
+  }
+}
+
+function updateBreakUI() {
+  const active    = isBreakActive();
+  const rem       = getRemBreakSec();
+  const limit     = getBreakLimitSec();
+  const used      = limit - rem;
+  const pct       = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  const ts        = fmtSec(rem);
+  const exhausted = rem <= 0;
+
+  // Header badge
+  const hb = document.getElementById("break-header-badge");
+  hb.classList.toggle("hidden", !active);
+  document.getElementById("break-badge-time").textContent = ts;
+
+  // Capsule countdown display
+  const rtEl = document.getElementById("break-ring-time");
+  if (rtEl) rtEl.textContent = exhausted ? "0:00" : ts;
+
+  const capsule = document.getElementById("break-capsule");
+  if (capsule) {
+    capsule.classList.toggle("active", active && !exhausted);
+    capsule.classList.toggle("exhausted", exhausted);
+  }
+
+  const capFill = document.getElementById("break-capsule-fill");
+  if (capFill) {
+    capFill.style.width = pct + "%";
+  }
+
+  const usedMinEl = document.getElementById("break-used-min");
+  if (usedMinEl) usedMinEl.textContent = Math.round(used / 60);
+
+  // Status pill
+  const pill = document.getElementById("break-status-pill");
+  const pillTxt = document.getElementById("break-status-text");
+  if (pill && pillTxt) {
+    pill.className = "break-status-pill " + (exhausted ? "exhausted" : active ? "active" : "idle");
+    pillTxt.textContent = exhausted ? "Limit reached" : active ? "Active" : "Idle";
+  }
+
+  // Mini bar (thin strip under capsule)
+  const miniBar = document.getElementById("break-usage-bar");
+  if (miniBar) {
+    miniBar.style.width = pct + "%";
+    miniBar.style.background = exhausted ? "var(--danger)" : "var(--warn)";
+  }
+
+  // Usage card bar
+  const bar2 = document.getElementById("break-usage-bar-2");
+  if (bar2) {
+    bar2.style.width = pct + "%";
+    bar2.style.background = exhausted ? "var(--danger)" : "var(--warn)";
+  }
+
+  const usedMin  = Math.round(used / 60);
+  const limitMin = Math.round(limit / 60);
+  const usedLbl  = document.getElementById("break-used-label");
+  const leftLbl  = document.getElementById("break-left-label");
+  if (usedLbl) usedLbl.textContent = usedMin + " min used" + (exhausted ? " — LIMIT REACHED" : "");
+  if (leftLbl) leftLbl.textContent = `of ${limitMin} min daily limit`;
+
+  // Start / stop buttons
+  const startBtn = document.getElementById("break-start-btn");
+  const stopBtn  = document.getElementById("break-stop-btn");
+  if (startBtn) { startBtn.classList.toggle("hidden", active || exhausted); startBtn.disabled = false; }
+  if (stopBtn)  stopBtn.classList.toggle("hidden", !active || exhausted);
+
+  // Compat: legacy break-time-center element still referenced by old code
+  const tcEl = document.getElementById("break-time-center");
+  if (tcEl) tcEl.classList.toggle("active", active);
+}
+
+(function restoreBreakState() {
+  if (!isBreakActive()) return;
+  // Compute elapsed from wall-clock start timestamp
+  const startTs = load(SK.BREAK_START_TS, null);
+  if (startTs) {
+    const elapsedSec = Math.floor((Date.now() - new Date(startTs).getTime()) / 1000);
+    const usage = getBreakUsage();
+    if (elapsedSec > usage.usedSeconds) {
+      usage.usedSeconds = Math.min(elapsedSec, getBreakLimitSec());
+      save(SK.BREAK_USAGE, usage);
+    }
+  }
+  if (getRemBreakSec() > 0) {
+    _startTimer();
+  } else {
+    save(SK.BREAK_ACTIVE, false);
+    localStorage.removeItem(SK.BREAK_START_TS);
+  }
+})();
+
+/* ── WHITELIST MANAGEMENT ── */
+function addToWhitelist(ch) {
+  if (isWlLocked()) { toast("Whitelist is locked.", "error"); return; }
+  const wl = getWhitelist();
+  if (wl.some(c => c.channelId === ch.channelId)) { toast("Already in whitelist.", "info"); return; }
+  wl.push(ch);
+  save(SK.WHITELIST, wl);
+  renderChannelsPage();
+  renderSettingsWlList();
+  renderDrawerHistory();
+  toast(`Added "${ch.title}" to whitelist.`, "success");
+}
+
+function removeFromWhitelist(channelId) {
+  if (isWlLocked()) { toast("Whitelist is locked.", "error"); return; }
+  save(SK.WHITELIST, getWhitelist().filter(c => c.channelId !== channelId));
+  renderChannelsPage();
+  renderSettingsWlList();
+  renderDrawerHistory();
+  toast("Channel removed.", "info");
+}
+
+/* ── BREAK CHANNELS DRAFT (stage changes, save once) ── */
+// _bkDraft = null means "no active editing session"
+// _bkDraft = [...] means unsaved staged list
+let _bkDraft = null;
+
+function bkDraftActive() { return _bkDraft !== null; }
+
+function openBreakChDraft() {
+  if (!canEditBreakChs()) {
+    toast(`Break channels locked — editable again in ${fmtCooldown(breakChCooldownRemaining())}.`, "warn");
+    return;
+  }
+  _bkDraft = getBreakChs().map(c => ({ ...c })); // clone current saved list
+  renderBreakChannels();
+  renderSettingsBkList();
+  toast("Edit mode opened — make all your changes, then press Save.", "info");
+}
+
+function saveBreakChDraft() {
+  if (!_bkDraft) return;
+  save(SK.BREAK_CH, _bkDraft);
+  stampBreakChEdit();
+  _bkDraft = null;
+  renderBreakChannels();
+  renderSettingsBkList();
+  toast("Break channels saved. Next edit allowed in 3 days.", "success");
+}
+
+function discardBreakChDraft() {
+  _bkDraft = null;
+  renderBreakChannels();
+  renderSettingsBkList();
+  toast("Changes discarded.", "info");
+}
+
+function addToBreakChs(ch) {
+  if (!bkDraftActive()) {
+    if (!canEditBreakChs()) {
+      toast(`Break channels locked — editable again in ${fmtCooldown(breakChCooldownRemaining())}.`, "warn");
+      return;
+    }
+    openBreakChDraft();
+  }
+  if (_bkDraft.some(c => c.channelId === ch.channelId)) { toast("Already in break channels.", "info"); return; }
+  _bkDraft.push(ch);
+  renderBreakChannels();
+  renderSettingsBkList();
+  toast(`Added "${ch.title}" — don't forget to Save Changes.`, "warn");
+}
+
+function removeFromBreakChs(channelId) {
+  if (!bkDraftActive()) {
+    if (!canEditBreakChs()) {
+      toast(`Break channels locked — editable again in ${fmtCooldown(breakChCooldownRemaining())}.`, "warn");
+      return;
+    }
+    openBreakChDraft();
+  }
+  _bkDraft = _bkDraft.filter(c => c.channelId !== channelId);
+  renderBreakChannels();
+  renderSettingsBkList();
+  toast("Removed — don't forget to Save Changes.", "warn");
+}
+
+async function confirmWhitelist() {
+  if (isWlLocked()) { toast("Already locked.", "info"); return; }
+  if (!getWhitelist().length) { toast("Add at least one channel before locking.", "warn"); return; }
+  const isFirstLock = localStorage.getItem(SK.WL_EDITS) === null;
+  const confirmed = await showModal({
+    icon: "🔒", iconClass: "modal-icon-warn", title: "Lock Whitelist?",
+    body: isFirstLock
+      ? "Lock the whitelist to prevent accidental changes. You'll get exactly <strong>1 edit window</strong> after this."
+      : `Re-lock the whitelist? You have <strong>${getEditsLeft()} edit(s)</strong> remaining.`,
+    confirmText: "Lock", confirmClass: "btn-primary",
+  });
+  if (!confirmed) return;
+  if (isFirstLock) save(SK.WL_EDITS, 1);
+  save(SK.WL_LOCKED, true);
+  renderChannelsPage(); renderSettingsPage();
+  toast("Whitelist locked.", "success");
+}
+
+async function toggleWhitelistLock() {
+  if (!isWlLocked()) { confirmWhitelist(); return; }
+  const edits = getEditsLeft();
+  if (edits <= 0) { toast("No edits remaining. Whitelist is permanently locked.", "error"); return; }
+  const confirmed = await showModal({
+    icon: "🔓", iconClass: "modal-icon-warn", title: "Unlock Whitelist?",
+    body: `This uses <strong>1 of your ${edits} edit(s)</strong>. Remember to re-lock after making changes.`,
+    confirmText: "Unlock", confirmClass: "btn-warn",
+  });
+  if (!confirmed) return;
+  save(SK.WL_EDITS, edits - 1);
+  save(SK.WL_LOCKED, false);
+  renderChannelsPage(); renderSettingsPage();
+  toast("Whitelist unlocked. Remember to re-lock!", "warn");
+}
+
+/* ── CHANNEL SEARCH ── */
+async function searchChannels(target) {
+  const inputId = {
+    "whitelist":          "ch-search-inp",
+    "break":              "bk-ch-search-inp",
+    "whitelist-settings": "st-wl-search",
+    "break-settings":     "st-bk-search",
+  }[target];
+
+  const resultId = {
+    "whitelist":          "channels-search-results",
+    "break":              "break-search-results",
+    "whitelist-settings": "settings-wl-results",
+    "break-settings":     "settings-bk-results",
+  }[target];
+
+  const q = document.getElementById(inputId)?.value?.trim();
+  if (!q) return;
+  if (!apiKey()) { toast("Set your YouTube API key in Settings first.", "error"); return; }
+
+  let resultsEl = document.getElementById(resultId);
+  if (!resultsEl) {
+    resultsEl = document.createElement("div");
+    resultsEl.id = resultId;
+    document.getElementById("channels-content").appendChild(resultsEl);
+  }
+
+  resultsEl.innerHTML = `<div class="load-state"><div class="spinner"></div><span>Searching...</span></div>`;
+
+  try {
+    const channels = await ytSearchChannels(q);
+    if (!channels.length) {
+      resultsEl.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="empty-title">No channels found</div></div>`;
+      return;
+    }
+
+    const isBreakTarget = target === "break" || target === "break-settings";
+
+    resultsEl.innerHTML = channels.map(ch => {
+      const rid    = regCh(ch);
+      const inList = isBreakTarget ? isBreakCh(ch.channelId) : isWlCh(ch.channelId);
+      const locked = !isBreakTarget && isWlLocked();
+      let actionBtn;
+      if (locked) {
+        actionBtn = `<span class="badge badge-danger" style="padding:3px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`;
+      } else if (inList) {
+        const removeFn = isBreakTarget ? "removeFromBreakChById" : "removeFromWlById";
+        actionBtn = `<button class="btn btn-secondary btn-xs" onclick="${removeFn}('${esc(ch.channelId)}')">Remove</button>`;
+      } else {
+        const addFn   = isBreakTarget ? "addToBreakChByRegDraft" : "addToWlByReg";
+        const btnClass = isBreakTarget ? "btn-warn" : "btn-primary";
+        actionBtn = `<button class="btn ${btnClass} btn-xs" onclick="${addFn}(${rid})">+ Add</button>`;
+      }
+      return `
+        <div class="ch-card">
+          <img src="${esc(ch.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+          <div class="ch-card-info">
+            <div class="ch-card-name">${esc(ch.title)}</div>
+            <div class="ch-card-subs">${fmtSubs(ch.subscriberCount)}</div>
+            <div class="ch-card-desc">${esc(ch.description)}</div>
+          </div>
+          ${actionBtn}
+        </div>`;
+    }).join("");
+  } catch (err) {
+    resultsEl.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="empty-title">Search failed</div><div class="empty-sub">${esc(err.message)}</div></div>`;
+  }
+}
+
+function addToWlByReg(rid)          { const ch = chReg.get(rid); if (ch) addToWhitelist(ch); }
+function addToBreakChByReg(rid)     { const ch = chReg.get(rid); if (ch) addToBreakChs(ch); }
+function removeFromWlById(id)       { removeFromWhitelist(id); renderChannelsPage(); }
+function removeFromBreakChById(id)  { removeFromBreakChs(id); }
+function addToBreakChByRegDraft(rid) { const ch = chReg.get(rid); if (ch) addToBreakChs(ch); }
+
+/* ── CHANNELS PAGE RENDER ── */
+function renderChannelsPage() {
+  const wl      = getWhitelist();
+  const locked  = isWlLocked();
+  const edits   = getEditsLeft();
+  const content = document.getElementById("channels-content");
+  let html = "";
+
+  if (locked) {
+    html += `<div class="lock-banner"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.7"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> <span style="flex:1">Whitelist is <strong>locked</strong>. ${edits} edit${edits!==1?"s":""} remaining. Unlock in Settings.</span><span class="lock-badge badge-danger">LOCKED</span></div>`;
+  } else if (wl.length > 0) {
+    html += `<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="confirmWhitelist()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock Whitelist</button></div>`;
+  }
+
+  if (wl.length === 0) {
+    html += `<div class="empty-state"><div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="empty-title">No channels yet</div><div class="empty-sub">Use the search bar above to find and add study channels.</div></div>`;
+  } else {
+    html += `<div style="margin-bottom:8px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Your Whitelist (${wl.length})</div>`;
+    html += wl.map(ch => `
+      <div class="wl-row">
+        <button class="wl-row-thumb-btn" onclick="openChannelPage('${esc(ch.channelId)}','${esc(ch.title)}','${esc(ch.thumbnail)}')" title="View channel videos">
+          <img src="${esc(ch.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+          <span class="wl-row-name">${esc(ch.title)}</span>
+        </button>
+        ${locked
+          ? `<span class="badge badge-danger" style="font-size:9.5px;padding:3px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`
+          : `<button class="remove-btn" onclick="removeFromWhitelist('${esc(ch.channelId)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`
+        }
+      </div>`).join("");
+  }
+
+  content.innerHTML = html;
+
+  const existingResults = document.getElementById("channels-search-results");
+  if (!existingResults) {
+    const rd = document.createElement("div");
+    rd.id = "channels-search-results";
+    content.appendChild(rd);
+  }
+}
+
+function renderBreakChannels() {
+  const saved   = getBreakChs();
+  const isDraft = bkDraftActive();
+  const chs     = isDraft ? _bkDraft : saved;
+  const el      = document.getElementById("break-channels-list");
+  if (!el) return;
+
+  const locked  = !canEditBreakChs();
+  const remMs   = breakChCooldownRemaining();
+
+  // Search/add row state — enabled only while draft is active
+  const searchInp = document.getElementById("bk-ch-search-inp");
+  const addBtn    = document.querySelector("[onclick=\"searchChannels('break')\"]");
+  const lockNote  = document.getElementById("break-ch-lock-note");
+
+  if (searchInp) { searchInp.disabled = !isDraft; searchInp.style.opacity = isDraft ? "" : "0.45"; }
+  if (addBtn)    addBtn.disabled = !isDraft;
+
+  if (lockNote) {
+    if (isDraft) {
+      lockNote.innerHTML = `<span style="color:var(--warn)">✏️ Edit mode — unsaved changes</span>`;
+    } else if (locked) {
+      lockNote.innerHTML = `<span style="color:var(--warn)">🔒 Locked — editable again in ${fmtCooldown(remMs)}</span>`;
+    } else {
+      lockNote.innerHTML = getBreakChSetAt()
+        ? `<span style="color:var(--accent)">✓ Saved. You can open a new edit session.</span>`
+        : ``;
+    }
+  }
+
+  // Save / Discard bar — shown only during draft
+  let saveBarHtml = "";
+  if (isDraft) {
+    saveBarHtml = `
+      <div id="bk-save-bar" style="
+        display:flex;gap:8px;padding:10px 12px;
+        background:rgba(245,158,11,.06);
+        border-top:1px solid rgba(245,158,11,.18);
+        border-bottom:1px solid rgba(245,158,11,.18);
+        margin-bottom:4px;align-items:center
+      ">
+        <span style="flex:1;font-size:11px;color:var(--warn);font-weight:600">
+          ${_bkDraft.length} channel${_bkDraft.length !== 1 ? "s" : ""} staged — save to apply &amp; start cooldown
+        </span>
+        <button class="btn btn-secondary btn-xs" onclick="discardBreakChDraft()" style="border-radius:99px">Discard</button>
+        <button class="btn btn-accent btn-xs" onclick="saveBreakChDraft()" style="border-radius:99px;font-weight:700">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Save Changes
+        </button>
+      </div>`;
+  }
+
+  if (chs.length === 0) {
+    el.innerHTML = saveBarHtml + `<div class="empty-state" style="padding:14px">
+      <div class="empty-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg></div>
+      <div class="empty-sub">${isDraft ? "Search above and add channels." : "Add channels for quick reference during breaks."}</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = saveBarHtml + chs.map(ch => `
+    <div class="wl-row">
+      <button class="wl-row-thumb-btn" onclick="openChannelPage('${esc(ch.channelId)}','${esc(ch.title)}','${esc(ch.thumbnail)}')" title="View channel videos">
+        <img src="${esc(ch.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+        <span class="wl-row-name">${esc(ch.title)}</span>
+      </button>
+      ${isDraft
+        ? `<button class="remove-btn" onclick="removeFromBreakChs('${esc(ch.channelId)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`
+        : locked
+          ? `<span class="badge badge-warn" style="font-size:9.5px;padding:3px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`
+          : `<button class="remove-btn" style="opacity:0.35" title="Open Edit Session first" disabled><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`
+      }
+    </div>`).join("");
+}
+
+function renderSettingsWlList() {
+  const wl  = getWhitelist();
+  const el  = document.getElementById("settings-wl-list");
+  if (!el) return;
+  el.innerHTML = wl.length === 0
+    ? `<div style="font-size:11.5px;color:var(--text3);padding:6px 0">No channels whitelisted yet.</div>`
+    : wl.map(ch => `
+        <div class="wl-row" style="margin-bottom:6px">
+          <button class="wl-row-thumb-btn" onclick="openChannelPage('${esc(ch.channelId)}','${esc(ch.title)}','${esc(ch.thumbnail)}')" title="View channel videos">
+            <img src="${esc(ch.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+            <span class="wl-row-name">${esc(ch.title)}</span>
+          </button>
+          ${isWlLocked()
+            ? `<span class="badge badge-danger" style="font-size:9.5px;padding:3px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`
+            : `<button class="remove-btn" onclick="removeFromWhitelist('${esc(ch.channelId)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`}
+        </div>`).join("");
+}
+
+function renderSettingsBkList() {
+  const isDraft = bkDraftActive();
+  const chs     = isDraft ? _bkDraft : getBreakChs();
+  const el      = document.getElementById("settings-bk-list");
+  if (!el) return;
+  const locked = !canEditBreakChs();
+  const remMs  = breakChCooldownRemaining();
+
+  const stSearchInp = document.getElementById("st-bk-search");
+  const stSearchBtn = document.querySelector("[onclick=\"searchChannels('break-settings')\"]");
+  const stLockNote  = document.getElementById("settings-bk-lock-note");
+  if (stSearchInp) { stSearchInp.disabled = !isDraft; stSearchInp.style.opacity = isDraft ? "" : "0.45"; }
+  if (stSearchBtn) stSearchBtn.disabled = !isDraft;
+  if (stLockNote) {
+    if (isDraft) {
+      stLockNote.innerHTML = `<span style="color:var(--warn)">✏️ Edit mode — unsaved changes. Save in Break Channels above.</span>`;
+    } else if (locked) {
+      stLockNote.innerHTML = `<span style="color:var(--warn)">🔒 Locked — editable again in ${fmtCooldown(remMs)}</span>`;
+    } else {
+      stLockNote.innerHTML = getBreakChSetAt() ? `<span style="color:var(--accent)">✓ Saved.</span>` : ``;
+    }
+  }
+
+  el.innerHTML = chs.length === 0
+    ? `<div style="font-size:11.5px;color:var(--text3);padding:6px 0">No break channels added yet.</div>`
+    : chs.map(ch => `
+        <div class="wl-row" style="margin-bottom:6px">
+          <button class="wl-row-thumb-btn" onclick="openChannelPage('${esc(ch.channelId)}','${esc(ch.title)}','${esc(ch.thumbnail)}')" title="View channel videos">
+            <img src="${esc(ch.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+            <span class="wl-row-name">${esc(ch.title)}</span>
+          </button>
+          ${isDraft
+            ? `<button class="remove-btn" onclick="removeFromBreakChs('${esc(ch.channelId)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`
+            : locked
+              ? `<span class="badge badge-warn" style="font-size:9.5px;padding:3px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`
+              : `<button class="remove-btn" style="opacity:0.35" disabled title="Open Edit Session first"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`}
+        </div>`).join("");
+}
+
+/* ── SETTINGS PAGE ── */
+function renderSettingsPage() {
+  const keyEl    = document.getElementById("api-key-inp");
+  const keyStatus = document.getElementById("api-key-status");
+  if (keyEl) { keyEl.value = apiKey(); keyEl.type = "password"; }
+  if (keyStatus) keyStatus.textContent = apiKey() ? "✓ Key 1 is saved." : "Key 1 not set.";
+
+  const key2El    = document.getElementById("api-key-2-inp");
+  const key2Status = document.getElementById("api-key-2-status");
+  if (key2El) { key2El.value = apiKey2(); key2El.type = "password"; }
+  if (key2Status) key2Status.textContent = apiKey2() ? "✓ Key 2 is saved." : "Key 2 not set.";
+
+  updateApiKeyIndicator();
+
+  const blEl = document.getElementById("break-limit-inp");
+  const blBtn = document.getElementById("break-limit-save-btn");
+  const blNote = document.getElementById("break-limit-note");
+  if (blEl) blEl.value = load(SK.BREAK_LIMIT, 20);
+
+  const canEdit = canEditBreakLimit();
+  const remMs   = breakLimitCooldownRemaining();
+  if (blEl)  { blEl.disabled  = !canEdit; blEl.style.opacity = canEdit ? "" : "0.45"; }
+  if (blBtn) { blBtn.disabled = !canEdit; }
+  if (blNote) {
+    if (canEdit) {
+      const setAt = getBreakLimitSetAt();
+      blNote.textContent = setAt ? "You can update the limit now." : "";
+      blNote.style.color = "var(--accent)";
+    } else {
+      blNote.textContent = `🔒 Locked — editable again in ${fmtCooldown(remMs)}`;
+      blNote.style.color = "var(--warn)";
+    }
+  }
+
+  const used  = Math.round(getBreakUsage().usedSeconds / 60);
+  const limit = load(SK.BREAK_LIMIT, 20);
+  const buEl  = document.getElementById("settings-break-used");
+  if (buEl) buEl.textContent = `${used} / ${limit} min`;
+
+  const locked  = isWlLocked();
+  const edits   = getEditsLeft();
+  const lbEl    = document.getElementById("lock-badge-el");
+  const lockBtn = document.getElementById("lock-btn");
+  const lockDesc = document.getElementById("lock-desc-text");
+
+  if (lbEl) {
+    lbEl.className = "badge " + (locked ? "badge-danger" : "badge-accent");
+    lbEl.textContent = locked ? "LOCKED" : "UNLOCKED";
+  }
+  if (lockBtn) {
+    if (locked && edits <= 0) {
+      lockBtn.textContent = "Permanently Locked";
+      lockBtn.className = "btn btn-sm";
+      lockBtn.disabled = true;
+    } else if (locked) {
+      lockBtn.textContent = `Unlock (${edits} left)`;
+      lockBtn.className = "btn btn-secondary btn-sm";
+      lockBtn.disabled = false;
+    } else {
+      lockBtn.textContent = "Lock Now";
+      lockBtn.className = "btn btn-primary btn-sm";
+      lockBtn.disabled = false;
+    }
+  }
+  if (lockDesc) {
+    lockDesc.innerHTML = locked
+      ? `Locked. <strong>${edits}</strong> edit${edits!==1?"s":""} remaining.`
+      : (localStorage.getItem(SK.WL_EDITS) === null
+          ? `Unlocked. Lock to prevent changes. You get 1 edit window after locking.`
+          : `Unlocked. <strong>${edits}</strong> edit${edits!==1?"s":""} remaining. Remember to re-lock!`);
+  }
+
+  renderSettingsWlList();
+  renderSettingsBkList();
+}
+
+function saveApiKey() {
+  const val = document.getElementById("api-key-inp")?.value?.trim();
+  if (!val) { toast("Enter Key 1.", "warn"); return; }
+  save(SK.API_KEY, val);
+  document.getElementById("api-key-inp").value = "";
+  document.getElementById("api-key-status").textContent = "✓ Key 1 is saved.";
+  if (getActiveKey() !== 1) setActiveKey(1);
+  updateApiKeyIndicator();
+  toast("API Key 1 saved!", "success");
+}
+
+function saveApiKey2() {
+  const val = document.getElementById("api-key-2-inp")?.value?.trim();
+  if (!val) { toast("Enter Key 2.", "warn"); return; }
+  save(SK.API_KEY_2, val);
+  document.getElementById("api-key-2-inp").value = "";
+  document.getElementById("api-key-2-status").textContent = "✓ Key 2 is saved.";
+  updateApiKeyIndicator();
+  toast("API Key 2 saved! Auto-failover enabled.", "success");
+}
+
+function getBreakLimitCooldownMs() { return 3 * 24 * 60 * 60 * 1000; } // 3 days in ms
+
+function getBreakLimitSetAt() { return load(SK.BREAK_LIMIT_SET_AT, null); }
+
+function canEditBreakLimit() {
+  const setAt = getBreakLimitSetAt();
+  if (!setAt) return true; // never been set
+  return (Date.now() - new Date(setAt).getTime()) >= getBreakLimitCooldownMs();
+}
+
+function breakLimitCooldownRemaining() {
+  const setAt = getBreakLimitSetAt();
+  if (!setAt) return 0;
+  const elapsed = Date.now() - new Date(setAt).getTime();
+  return Math.max(0, getBreakLimitCooldownMs() - elapsed);
+}
+
+function fmtCooldown(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function saveBreakLimit() {
+  if (!canEditBreakLimit()) {
+    const rem = breakLimitCooldownRemaining();
+    toast(`Break limit locked — editable again in ${fmtCooldown(rem)}.`, "warn");
+    return;
+  }
+  const v = parseInt(document.getElementById("break-limit-inp")?.value);
+  if (isNaN(v) || v < 1 || v > 180) { toast("Enter 1–180 minutes.", "warn"); return; }
+  save(SK.BREAK_LIMIT, v);
+  save(SK.BREAK_LIMIT_SET_AT, new Date().toISOString());
+  updateBreakUI();
+  renderSettingsPage();
+  toast(`Break limit set to ${v} min/day. Next edit allowed in 3 days.`, "success");
+}
+
+/* ── BREAK CHANNELS 3-DAY LOCK ── */
+function getBreakChSetAt()          { return load(SK.BREAK_CH_SET_AT, null); }
+function canEditBreakChs() {
+  const setAt = getBreakChSetAt();
+  if (!setAt) return true;
+  return (Date.now() - new Date(setAt).getTime()) >= getBreakLimitCooldownMs(); // reuse same 3-day constant
+}
+function breakChCooldownRemaining() {
+  const setAt = getBreakChSetAt();
+  if (!setAt) return 0;
+  return Math.max(0, getBreakLimitCooldownMs() - (Date.now() - new Date(setAt).getTime()));
+}
+function stampBreakChEdit() { save(SK.BREAK_CH_SET_AT, new Date().toISOString()); }
+
+/* ── LOCAL FILE DETECTION ── */
+function isLocalFile() {
+ return false;
+}
+
+/* ── PLAYER ── */
+function extractVideoId(url) {
+  if (!url) return null;
+  const pats = [
+    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of pats) { const m = url.match(p); if (m) return m[1]; }
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) return url.trim();
+  return null;
+}
+
+async function playVideo(videoId) {
+  if (!videoId) return;
+  if (!apiKey()) { toast("Set your API key in Settings first.", "error"); return; }
+
+  const overlay = document.getElementById("player-overlay");
+  overlay.classList.remove("hidden");
+  document.getElementById("player-loading").classList.remove("hidden");
+  document.getElementById("player-error").classList.add("hidden");
+  document.getElementById("player-content").classList.add("hidden");
+  document.getElementById("player-bar-title").textContent = "Loading...";
+  document.getElementById("player-bar-badges").innerHTML = "";
+
+  try {
+    const vid    = await fetchVideoDetails(videoId);
+    const wl     = getWhitelist();
+    const active = isBreakActive();
+    const wled   = isWlCh(vid.channelId);
+    const bkCh   = isBreakCh(vid.channelId);
+    const exhausted = getRemBreakSec() <= 0;
+
+    if (bkCh && !wled && exhausted) {
+      document.getElementById("player-loading").classList.add("hidden");
+      document.getElementById("player-error").classList.remove("hidden");
+      document.getElementById("player-err-title").textContent = "Break limit reached";
+      document.getElementById("player-err-msg").textContent =
+        `Daily break time is exhausted. "${vid.channelTitle}" is a break channel and is blocked until midnight.`;
+      return;
+    }
+
+    if (wl.length > 0 && !wled && !active) {
+      document.getElementById("player-loading").classList.add("hidden");
+      document.getElementById("player-error").classList.remove("hidden");
+      document.getElementById("player-err-title").textContent = "Not in whitelist";
+      document.getElementById("player-err-msg").textContent =
+        `"${vid.channelTitle}" is not whitelisted. Enable Break Mode to watch it.`;
+      return;
+    }
+
+    const badges = document.getElementById("player-bar-badges");
+    if (wled)        badges.innerHTML = `<span class="badge badge-accent"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Whitelisted</span>`;
+    else if (active) badges.innerHTML = `<span class="badge badge-warn"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg> Break</span>`;
+
+    document.getElementById("player-bar-title").textContent = vid.title;
+
+    const descHTML = vid.description ? `
+      <div class="player-desc" id="pdesc">${esc(vid.description)}</div>
+      <span class="desc-toggle" onclick="toggleDesc()">Show more</span>` : "";
+
+    const breakBadge = !wled && active
+      ? `<div class="badge badge-warn" style="margin-bottom:9px;display:inline-flex;gap:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg> Break Mode — ${fmtSec(getRemBreakSec())} remaining</div>`
+      : "";
+
+    const metaHTML = `
+      <div class="player-vid-title">${esc(vid.title)}</div>
+      <div class="player-meta-row">
+        <span>${esc(vid.channelTitle)}</span>
+        ${vid.viewCount   ? `<span>${fmtViews(vid.viewCount)}</span>` : ""}
+        ${vid.duration    ? `<span>${parseDur(vid.duration)}</span>`  : ""}
+        ${vid.publishedAt ? `<span>${timeAgo(vid.publishedAt)}</span>`: ""}
+      </div>
+      ${breakBadge}`;
+
+    if (isLocalFile()) {
+      const ytURL = `https://www.youtube.com/watch?v=${vid.id}`;
+      document.getElementById("player-meta").innerHTML = `
+        ${metaHTML}
+        <a href="${ytURL}" target="_blank" rel="noopener noreferrer"
+           style="display:block;margin:10px 0;border-radius:var(--r2);overflow:hidden;position:relative;text-decoration:none">
+          <img src="${esc(vid.thumbnail)}"
+               style="width:100%;display:block;object-fit:cover;max-height:200px"
+               onerror="this.style.background='var(--bg3)'" />
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4)">
+            <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:24px;padding-left:3px">▶</div>
+          </div>
+        </a>
+        <a href="${ytURL}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-primary btn-full"
+           style="display:flex;justify-content:center;gap:7px;text-decoration:none;margin-bottom:7px;font-size:13.5px">
+          ▶ Watch on YouTube
+        </a>
+        <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.18);border-radius:var(--r);padding:9px 11px;margin-bottom:12px">
+          <div style="font-size:11.5px;color:var(--warn);font-weight:700;margin-bottom:3px">Local File Mode</div>
+          <div style="font-size:10.5px;color:var(--text2);line-height:1.6">
+            YouTube embeds are blocked when opened from local storage (Error 153).
+            To enable in-app playback: <code style="font-size:10px;color:var(--primary-l);background:var(--bg3);padding:1px 5px;border-radius:3px">npx serve .</code>
+          </div>
+        </div>
+        ${descHTML}`;
+      document.getElementById("player-loading").classList.add("hidden");
+      document.getElementById("player-content").classList.remove("hidden");
+      const iw = document.querySelector(".iframe-wrap");
+      if (iw) iw.style.display = "none";
+    } else {
+      const iw = document.querySelector(".iframe-wrap");
+      if (iw) iw.style.display = "";
+      const src = `https://www.youtube-nocookie.com/embed/${vid.id}?autoplay=1&rel=0&modestbranding=1`;
+      document.getElementById("yt-iframe").src = src;
+      document.getElementById("player-meta").innerHTML = `
+        ${metaHTML}
+        ${descHTML}
+        <div style="margin-top:9px">
+          <a href="https://www.youtube.com/watch?v=${vid.id}" target="_blank" rel="noopener noreferrer"
+             style="font-size:11px;color:var(--text3)">↗ Open on YouTube</a>
+        </div>`;
+      document.getElementById("player-loading").classList.add("hidden");
+      document.getElementById("player-content").classList.remove("hidden");
+    }
+
+    // Player actions: Watch Later + Open on YouTube
+    const isSaved = WatchLater.has(vid.id);
+    const actionsEl = document.getElementById("player-actions");
+    if (actionsEl) {
+      actionsEl.innerHTML = `
+        <button class="btn btn-bookmark btn-sm" id="player-wl-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+          ${isSaved ? "Saved" : "Watch Later"}
+        </button>
+        <a href="https://www.youtube.com/watch?v=${vid.id}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open on YouTube
+        </a>`;
+      const playerWlBtn = document.getElementById("player-wl-btn");
+      playerWlBtn._videoObj = {id: vid.id, title: vid.title, channelTitle: vid.channelTitle, thumbnail: vid.thumbnail, channelId: vid.channelId};
+      playerWlBtn.addEventListener("click", function() { playerToggleWatchLater(this._videoObj); });
+    }
+
+    addHistory({ videoId: vid.id, title: vid.title, channelTitle: vid.channelTitle, thumbnail: vid.thumbnail });
+    recordStat(vid.channelId);
+    renderDrawerHistory();
+
+  } catch (err) {
+    document.getElementById("player-loading").classList.add("hidden");
+    document.getElementById("player-error").classList.remove("hidden");
+    document.getElementById("player-err-title").textContent = "Error";
+    document.getElementById("player-err-msg").textContent = err.message;
+  }
+}
+
+function playerToggleWatchLater(videoObj) {
+  const v = typeof videoObj === "string" ? JSON.parse(videoObj) : videoObj;
+  toggleWatchLater(v);
+  const btn = document.getElementById("player-wl-btn"); if (!btn) return;
+  const isSaved = WatchLater.has(v.id || v.videoId);
+  const svg = btn.querySelector("svg"); if (svg) svg.setAttribute("fill", isSaved ? "currentColor" : "none");
+  // Update button text
+  const textNodes = [...btn.childNodes].filter(n => n.nodeType === 3);
+  if (textNodes.length) textNodes[textNodes.length-1].textContent = " " + (isSaved ? "Saved" : "Watch Later");
+}
+
+function closePlayer() {
+  document.getElementById("player-overlay").classList.add("hidden");
+  document.getElementById("yt-iframe").src = "";
+  const iw = document.querySelector(".iframe-wrap");
+  if (iw) iw.style.display = "";
+}
+
+function toggleDesc() {
+  const d = document.getElementById("pdesc");
+  const t = d?.nextElementSibling;
+  if (!d) return;
+  d.classList.toggle("exp");
+  if (t) t.textContent = d.classList.contains("exp") ? "Show less" : "Show more";
+}
+
+async function playFromUrl() {
+  const raw = document.getElementById("url-input")?.value?.trim();
+  if (!raw) return;
+  const vid = extractVideoId(raw);
+  if (!vid) { toast("Could not parse YouTube URL.", "error"); return; }
+  await playVideo(vid);
+}
+
+/* ── SEARCH PAGE ── */
+async function doSearch() {
+  const q  = document.getElementById("search-input")?.value?.trim();
+  if (!q) return;
+  const wl = getWhitelist();
+  if (!wl.length) { toast("Add channels to your whitelist first.", "warn"); return; }
+  if (!apiKey())   { toast("Set your API key in Settings first.", "error"); return; }
+
+  const results = document.getElementById("search-results");
+  results.innerHTML = `<div class="load-state"><div class="spinner"></div><span>Searching ${wl.length} channel${wl.length>1?"s":""}...</span></div>`;
+
+  try {
+    const all = [];
+    for (let i = 0; i < wl.length; i += 3) {
+      const batch = await Promise.allSettled(wl.slice(i, i+3).map(c => searchVideosInChannel(q, c.channelId)));
+      batch.forEach(r => { if (r.status === "fulfilled") all.push(...r.value); });
+    }
+    if (!all.length) {
+      results.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><div class="empty-title">No results</div><div class="empty-sub">No videos matching "${esc(q)}" found in your ${wl.length} whitelisted channel${wl.length>1?"s":""}.</div></div>`;
+      return;
+    }
+    renderVideoGrid(results, all);
+  } catch (err) {
+    results.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="empty-title">Search failed</div><div class="empty-sub">${esc(err.message)}</div></div>`;
+  }
+}
+
+function renderVideoGrid(container, videos) {
+  const inner = document.createElement("div");
+  inner.className = "results-inner";
+  videos.forEach((v, i) => {
+    const card = document.createElement("div");
+    card.className = "video-card";
+    card.style.animationDelay = (i * 40) + "ms";
+    const isSaved = WatchLater.has(v.id);
+    card.innerHTML = `
+      <div class="vc-thumb">
+        <img src="${esc(v.thumbnail)}" alt="" loading="lazy" onerror="this.style.opacity=0" />
+        <div class="vc-thumb-overlay"><div class="vc-play-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+        <button class="vc-bookmark-btn ${isSaved ? "saved" : ""}" data-wl-id="${esc(v.id)}" title="${isSaved ? "Remove from Watch Later" : "Save to Watch Later"}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+        </button>
+      </div>
+      <div class="vc-info">
+        <div class="vc-title">${esc(v.title)}</div>
+        <div class="vc-ch">${esc(v.channelTitle)}${v.publishedAt ? " · " + timeAgo(v.publishedAt) : ""}</div>
+      </div>`;
+    // Store video object safely on the DOM element
+    const bookmarkBtn = card.querySelector(".vc-bookmark-btn");
+    bookmarkBtn._videoObj = {id: v.id, title: v.title, channelTitle: v.channelTitle, thumbnail: v.thumbnail, channelId: v.channelId};
+    bookmarkBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      toggleWatchLater(this._videoObj);
+      const saved = WatchLater.has(this._videoObj.id);
+      this.classList.toggle("saved", saved);
+      this.title = saved ? "Remove from Watch Later" : "Save to Watch Later";
+      const svg = this.querySelector("svg");
+      if (svg) svg.setAttribute("fill", saved ? "currentColor" : "none");
+    });
+    card.addEventListener("click", () => playVideo(v.id));
+    inner.appendChild(card);
+  });
+  container.innerHTML = "";
+  container.appendChild(inner);
+}
+
+/* ── DRAWER HISTORY ── */
+function renderDrawerHistory() {
+  const h  = getHistory();
+  const el = document.getElementById("drawer-history-list");
+  if (!el) return;
+  if (!h.length) {
+    el.innerHTML = `<div style="font-size:10.5px;color:var(--text3);padding:5px 4px">No videos watched yet.</div>`;
+    return;
+  }
+  el.innerHTML = h.slice(0, 8).map(item => `
+    <button class="history-row" onclick="playVideo('${esc(item.videoId)}');closeDrawer()">
+      <img src="${esc(item.thumbnail)}" alt="" onerror="this.style.opacity=0" />
+      <div class="history-row-info">
+        <div class="history-row-title">${esc(item.title)}</div>
+        <div class="history-row-ch">${esc(item.channelTitle)} · ${timeAgo(item.watchedAt)}</div>
+      </div>
+    </button>`).join("");
+}
+
+/* ── STATISTICS ── */
+function renderStats() {
+  const stats    = getStats();
+  const wl       = getWhitelist();
+  const history  = getHistory();
+  const limitMin = load(SK.BREAK_LIMIT, 20);
+  const usedMin  = Math.round(getBreakUsage().usedSeconds / 60);
+  const pct      = Math.min(100, (usedMin / limitMin) * 100);
+  const todaySt  = stats.find(s => s.date === today()) || { videos: 0, channels: [] };
+  const totalVids = stats.reduce((a, s) => a + s.videos, 0);
+
+  document.getElementById("stats-content").innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card" style="animation-delay:0ms"><div class="stat-num" style="color:var(--primary)">${todaySt.videos}</div><div class="stat-label">Videos Today</div></div>
+      <div class="stat-card" style="animation-delay:40ms"><div class="stat-num">${totalVids}</div><div class="stat-label">Total Videos</div></div>
+      <div class="stat-card" style="animation-delay:80ms"><div class="stat-num" style="color:var(--accent)">${wl.length}</div><div class="stat-label">Whitelisted Channels</div></div>
+      <div class="stat-card" style="animation-delay:120ms"><div class="stat-num" style="color:var(--warn)">${usedMin}</div><div class="stat-label">Break Min Today</div></div>
+      <div class="stat-card" style="animation-delay:160ms"><div class="stat-num">${history.length}</div><div class="stat-label">History Items</div></div>
+      <div class="stat-card" style="animation-delay:200ms"><div class="stat-num" style="color:var(--bookmark)">${WatchLater.count()}</div><div class="stat-label">Watch Later</div></div>
+    </div>
+
+    <div style="padding:0 12px 12px">
+      <div class="section-card">
+        <div class="section-card-head">Today's Break Usage</div>
+        <div class="section-card-body">
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:5px">
+            <span style="color:var(--text2)">${usedMin} min used</span>
+            <span style="color:var(--text3)">${Math.max(0, limitMin - usedMin)} min left</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="background:var(--warn);width:${pct}%"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Daily limit: ${limitMin} min · Resets at midnight</div>
+        </div>
+      </div>
+
+      ${stats.length ? `
+        <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:7px">Daily History (last ${stats.length} days)</div>
+        <div class="section-card">
+          ${stats.map(s => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 13px;border-bottom:1px solid var(--border);font-size:11.5px;color:var(--text2)">
+              <span style="flex:1;color:var(--text)">${s.date === today() ? "Today" : s.date}</span>
+              <span>${s.videos} video${s.videos!==1?"s":""}</span>
+              <span style="color:var(--text3)">${s.channels.length} ch</span>
+            </div>`).join("")}
+        </div>` : ""}
+    </div>`;
+}
+
+/* ── WATCH LATER ── */
+function toggleWatchLater(videoObj) {
+  const v = typeof videoObj === "string" ? JSON.parse(videoObj) : videoObj;
+  const item = {
+    videoId: v.id || v.videoId, title: v.title,
+    channelTitle: v.channelTitle || "", thumbnail: v.thumbnail || "", channelId: v.channelId || "",
+  };
+  if (WatchLater.has(item.videoId)) { WatchLater.remove(item.videoId); toast("Removed from Watch Later.", "info"); }
+  else { WatchLater.add(item); toast("Saved to Watch Later! 🔖", "success"); }
+  if (document.getElementById("page-watchlater").classList.contains("active")) renderWatchLaterPage();
+}
+
+function renderWatchLaterPage() {
+  const list = WatchLater.get(), content = document.getElementById("watchlater-content"); if (!content) return;
+  if (list.length === 0) {
+    content.innerHTML = `<div class="empty-state"><div class="empty-icon">🔖</div><div class="empty-title">No saved videos</div><div class="empty-sub">Bookmark videos from search results or the player using the 🔖 button. Whitelist rules apply at playback time.</div></div>`;
+    return;
+  }
+  const grid = document.createElement("div"); grid.className = "wl-video-list";
+  list.forEach((v, i) => {
+    const card = document.createElement("div"); card.className = "wl-video-card"; card.style.animationDelay = (i * 40) + "ms";
+    card.innerHTML = `
+      <div class="vc-thumb">
+        <img src="${esc(v.thumbnail)}" alt="" loading="lazy" onerror="this.style.opacity=0" />
+        <div class="vc-thumb-overlay"><div class="vc-play-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+        <button class="vc-remove-btn" onclick="event.stopPropagation();removeFromWatchLater('${esc(v.videoId)}')" title="Remove from Watch Later">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="vc-info">
+        <div class="vc-title">${esc(v.title)}</div>
+        <div class="vc-ch">${esc(v.channelTitle)}${v.savedAt ? " · " + timeAgo(v.savedAt) : ""}</div>
+      </div>`;
+    card.addEventListener("click", () => playVideo(v.videoId));
+    grid.appendChild(card);
+  });
+  content.innerHTML = ""; content.appendChild(grid);
+}
+
+function removeFromWatchLater(videoId) { WatchLater.remove(videoId); toast("Removed from Watch Later.", "info"); renderWatchLaterPage(); }
+
+/* ── WATCH FROM LINK ── */
+async function watchFromLink() {
+  const raw = document.getElementById("wfl-url-input")?.value?.trim();
+  if (!raw) { toast("Paste a YouTube URL first.", "warn"); return; }
+  const videoId = extractVideoId(raw);
+  if (!videoId) { toast("Could not parse YouTube URL.", "error"); return; }
+  if (!apiKey()) { toast("Set your API key in Settings first.", "error"); return; }
+  const preview = document.getElementById("wfl-preview");
+  preview.innerHTML = `<div class="load-state"><div class="spinner"></div><span>Fetching video details...</span></div>`;
+  try {
+    const vid = await fetchVideoDetails(videoId);
+    const wled = isWlCh(vid.channelId), active = isBreakActive(), exhausted = getRemBreakSec() <= 0, remSec = getRemBreakSec();
+    let statusHtml, actionHtml;
+    if (wled) {
+      statusHtml = `<div class="wfl-preview-status allowed"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Whitelisted channel — free to watch</div>`;
+      actionHtml = `<button class="btn btn-accent btn-full" onclick="playVideo('${esc(vid.id)}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Watch Now</button>`;
+    } else if (active && !exhausted) {
+      statusHtml = `<div class="wfl-preview-status break-allowed"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg> Break mode active — ${fmtSec(remSec)} remaining</div>`;
+      actionHtml = `<button class="btn btn-warn btn-full" onclick="playVideo('${esc(vid.id)}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Watch (Break Mode)</button>`;
+    } else if (!wled && !active && !exhausted) {
+      statusHtml = `<div class="wfl-preview-status blocked"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Not whitelisted — requires Break Mode (${fmtSec(remSec)} available)</div>`;
+      actionHtml = `<button class="btn btn-warn btn-full" onclick="watchFromLinkWithBreak('${esc(vid.id)}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/></svg> Use Break Minutes to Watch</button>`;
+    } else {
+      statusHtml = `<div class="wfl-preview-status blocked"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Not whitelisted &amp; break limit exhausted — blocked until midnight</div>`;
+      actionHtml = `<button class="btn btn-secondary btn-full" disabled>Blocked — resets at midnight</button>`;
+    }
+    const isSaved = WatchLater.has(vid.id);
+    preview.innerHTML = `
+      <div class="wfl-preview-card">
+        <div class="wfl-preview-thumb"><img src="${esc(vid.thumbnail)}" alt="" onerror="this.style.background='var(--bg3)'" /></div>
+        <div class="wfl-preview-info">
+          <div class="wfl-preview-title">${esc(vid.title)}</div>
+          <div class="wfl-preview-meta">${esc(vid.channelTitle)}${vid.viewCount ? " · " + fmtViews(vid.viewCount) : ""}${vid.duration ? " · " + parseDur(vid.duration) : ""}</div>
+          ${statusHtml}
+          <div style="display:flex;gap:8px">
+            ${actionHtml}
+            <button class="btn btn-bookmark btn-sm" id="wfl-wl-btn" title="${isSaved ? "Remove from Watch Later" : "Save to Watch Later"}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>`;
+    const wflWlBtn = document.getElementById("wfl-wl-btn");
+    if (wflWlBtn) {
+      wflWlBtn._videoObj = {id: vid.id, title: vid.title, channelTitle: vid.channelTitle, thumbnail: vid.thumbnail, channelId: vid.channelId};
+      wflWlBtn.addEventListener("click", function() {
+        toggleWatchLater(this._videoObj);
+        const saved = WatchLater.has(this._videoObj.id);
+        const svg = this.querySelector("svg"); if (svg) svg.setAttribute("fill", saved ? "currentColor" : "none");
+        this.title = saved ? "Remove from Watch Later" : "Save to Watch Later";
+      });
+    }
+  } catch (err) { preview.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed to fetch video</div><div class="empty-sub">${esc(err.message)}</div></div>`; }
+}
+
+async function watchFromLinkWithBreak(videoId) {
+  if (getRemBreakSec() <= 0) { toast("No break minutes remaining. Resets at midnight.", "error"); return; }
+  const confirmed = await showModal({
+    icon: "☕", iconClass: "modal-icon-warn", title: "Use Break Minutes?",
+    body: `This video is not from a whitelisted channel.<br><br>Watch it using your Break Mode minutes? (<strong>${fmtSec(getRemBreakSec())}</strong> remaining today)`,
+    confirmText: "Start Break & Watch", confirmClass: "btn-warn",
+  });
+  if (!confirmed) return;
+  startBreak(); playVideo(videoId);
+}
+
+/* ── KEYBOARD SHORTCUTS ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    const modalOverlay = document.getElementById("modal-overlay");
+    if (modalOverlay.classList.contains("open")) { closeModal(); return; }
+    const chOverlay = document.getElementById("channel-page-overlay");
+    if (!chOverlay.classList.contains("hidden")) { closeChannelPage(); return; }
+    const ol = document.getElementById("player-overlay");
+    if (!ol.classList.contains("hidden")) { closePlayer(); return; }
+    closeDrawer();
+  }
+});
+document.getElementById("modal-overlay").addEventListener("click", e => {
+  if (e.target === document.getElementById("modal-overlay")) closeModal();
+});
+
+/* ── INIT ── */
+function init() {
+  updateBreakUI();
+  renderChannelsPage();
+  renderBreakChannels();
+  renderDrawerHistory();
+  renderSettingsPage();
+  updateApiKeyIndicator();
+  updateWatchLaterBadge();
+  if (!apiKey() && !apiKey2()) setTimeout(() => toast("Open Settings (☰) to add your YouTube API key.", "info"), 900);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+/* ── API KEY HELPERS ── */
+function toggleKeyVisibility(inputId, iconId) {
+  const inp = document.getElementById(inputId);
+  const icon = document.getElementById(iconId);
+  if (!inp) return;
+  const isHidden = inp.type === "password";
+  inp.type = isHidden ? "text" : "password";
+  if (icon) {
+    icon.innerHTML = isHidden
+      ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+      : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  }
+}
+
+function copyApiKey(inputId, iconId) {
+  const inp = document.getElementById(inputId);
+  if (!inp || !inp.value) { toast("No key to copy.", "warn"); return; }
+  navigator.clipboard.writeText(inp.value).then(() => {
+    const icon = document.getElementById(iconId);
+    if (icon) {
+      const prev = icon.innerHTML;
+      icon.innerHTML = `<polyline points="20 6 9 17 4 12"/>`;
+      setTimeout(() => { icon.innerHTML = prev; }, 1500);
+    }
+    toast("API key copied!", "success");
+  }).catch(() => toast("Copy failed — select the key manually.", "error"));
+}
+</script>
+</body>
+</html>
