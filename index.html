@@ -2391,12 +2391,37 @@ function closeChannelPage() {
 /* ── BREAK MODE — wall-clock accurate timer ── */
 let breakInterval = null;
 let _nearExpiryWarned = false;
+
+/* Whenever the stored daily usage date no longer matches "today", the
+   daily limit has just reset. An active break session must NEVER carry
+   over into the new day — otherwise it silently keeps running on the
+   fresh limit without the user ever choosing to start it. */
+function checkNewDayBreakReset() {
+  const usage = load(SK.BREAK_USAGE, null);
+  const isNewDay = !usage || usage.date !== today();
+  if (isNewDay && load(SK.BREAK_ACTIVE, false)) {
+    save(SK.BREAK_ACTIVE, false);
+    localStorage.removeItem(SK.BREAK_START_TS);
+    if (breakInterval) { clearInterval(breakInterval); breakInterval = null; }
+    if (typeof toast === "function") {
+      toast("New day started — Break Mode was turned off automatically.", "info", 5000);
+    }
+    return true;
+  }
+  return false;
+}
+
 function isBreakActive() { return load(SK.BREAK_ACTIVE, false); }
 
 function _startTimer() {
   if (breakInterval) clearInterval(breakInterval);
   _nearExpiryWarned = false;
   breakInterval = setInterval(() => {
+    // New day rolled over while the app stayed open — stop the carried-over break immediately.
+    if (checkNewDayBreakReset()) {
+      updateBreakUI();
+      return;
+    }
     // Compute elapsed from wall-clock start timestamp for accuracy across reloads
     const startTs = load(SK.BREAK_START_TS, null);
     if (startTs) {
@@ -2540,6 +2565,10 @@ function updateBreakUI() {
 }
 
 (function restoreBreakState() {
+  // If the day has rolled over since this break was started, kill it before
+  // computing elapsed time — otherwise yesterday's stale timestamp gets
+  // measured against today's fresh limit and silently burns it.
+  if (checkNewDayBreakReset()) return;
   if (!isBreakActive()) return;
   // Compute elapsed from wall-clock start timestamp
   const startTs = load(SK.BREAK_START_TS, null);
