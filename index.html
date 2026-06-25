@@ -1875,7 +1875,7 @@ a { color: inherit; text-decoration: none; }
     </div>
     <div id="player-content" class="hidden">
       <div class="iframe-wrap">
-        <iframe id="yt-iframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="YouTube video player"></iframe>
+        <iframe id="yt-iframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="YouTube video player" sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"></iframe>
       </div>
       <div class="player-meta" id="player-meta"></div>
       <div class="player-actions" id="player-actions"></div>
@@ -1886,6 +1886,44 @@ a { color: inherit; text-decoration: none; }
 <div id="toast-wrap"></div>
 
 <script>
+/* ── YOUTUBE REDIRECT GUARD ──
+   Blocks any attempt (from our own UI, injected links, or the embedded
+   player chrome) to navigate to youtube.com / open it in a new tab/window.
+   youtube-nocookie.com is left untouched since that's the embed itself. */
+(function () {
+  function isYoutubeRedirect(url) {
+    if (!url) return false;
+    try {
+      const u = new URL(url, location.href);
+      const host = u.hostname.replace(/^www\./, "");
+      return (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be")
+        && host !== "youtube-nocookie.com";
+    } catch (e) { return false; }
+  }
+
+  function refuseRedirect() {
+    if (typeof toast === "function") toast("Opening YouTube is not supported.", "warn");
+    else alert("Opening YouTube is not supported.");
+  }
+
+  // Block window.open(...) attempts
+  const _open = window.open;
+  window.open = function (url, ...rest) {
+    if (isYoutubeRedirect(url)) { refuseRedirect(); return null; }
+    return _open.call(window, url, ...rest);
+  };
+
+  // Block clicks on any <a> (current or future) pointing at youtube.com
+  document.addEventListener("click", function (e) {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (a && isYoutubeRedirect(a.href)) {
+      e.preventDefault();
+      e.stopPropagation();
+      refuseRedirect();
+    }
+  }, true);
+})();
+
 /* ── STORAGE KEYS ── */
 const SK = {
   API_KEY:       "st_api_key",
@@ -3125,23 +3163,13 @@ async function playVideo(videoId) {
       ${breakBadge}`;
 
     if (isLocalFile()) {
-      const ytURL = `https://www.youtube.com/watch?v=${vid.id}`;
       document.getElementById("player-meta").innerHTML = `
         ${metaHTML}
-        <a href="${ytURL}" target="_blank" rel="noopener noreferrer"
-           style="display:block;margin:10px 0;border-radius:var(--r2);overflow:hidden;position:relative;text-decoration:none">
+        <div style="display:block;margin:10px 0;border-radius:var(--r2);overflow:hidden;position:relative">
           <img src="${esc(vid.thumbnail)}"
                style="width:100%;display:block;object-fit:cover;max-height:200px"
                onerror="this.style.background='var(--bg3)'" />
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4)">
-            <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:24px;padding-left:3px">▶</div>
-          </div>
-        </a>
-        <a href="${ytURL}" target="_blank" rel="noopener noreferrer"
-           class="btn btn-primary btn-full"
-           style="display:flex;justify-content:center;gap:7px;text-decoration:none;margin-bottom:7px;font-size:13.5px">
-          ▶ Watch on YouTube
-        </a>
+        </div>
         <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.18);border-radius:var(--r);padding:9px 11px;margin-bottom:12px">
           <div style="font-size:11.5px;color:var(--warn);font-weight:700;margin-bottom:3px">Local File Mode</div>
           <div style="font-size:10.5px;color:var(--text2);line-height:1.6">
@@ -3161,16 +3189,12 @@ async function playVideo(videoId) {
       document.getElementById("yt-iframe").src = src;
       document.getElementById("player-meta").innerHTML = `
         ${metaHTML}
-        ${descHTML}
-        <div style="margin-top:9px">
-          <a href="https://www.youtube.com/watch?v=${vid.id}" target="_blank" rel="noopener noreferrer"
-             style="font-size:11px;color:var(--text3)">↗ Open on YouTube</a>
-        </div>`;
+        ${descHTML}`;
       document.getElementById("player-loading").classList.add("hidden");
       document.getElementById("player-content").classList.remove("hidden");
     }
 
-    // Player actions: Watch Later + Open on YouTube
+    // Player actions: Watch Later
     const isSaved = WatchLater.has(vid.id);
     const actionsEl = document.getElementById("player-actions");
     if (actionsEl) {
@@ -3178,11 +3202,7 @@ async function playVideo(videoId) {
         <button class="btn btn-bookmark btn-sm" id="player-wl-btn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
           ${isSaved ? "Saved" : "Watch Later"}
-        </button>
-        <a href="https://www.youtube.com/watch?v=${vid.id}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Open on YouTube
-        </a>`;
+        </button>`;
       const playerWlBtn = document.getElementById("player-wl-btn");
       playerWlBtn._videoObj = {id: vid.id, title: vid.title, channelTitle: vid.channelTitle, thumbnail: vid.thumbnail, channelId: vid.channelId};
       playerWlBtn.addEventListener("click", function() { playerToggleWatchLater(this._videoObj); });
